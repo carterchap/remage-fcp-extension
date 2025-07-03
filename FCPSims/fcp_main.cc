@@ -40,16 +40,27 @@ int main(int argc, char **argv) {
     std::cout << "current gdml file: " << filename << std::endl;
     manager.GetDetectorConstruction()->IncludeGDMLFile(filename);
    
+    
+    
     auto user_init = manager.GetUserInit();
     auto *RunManager = manager.GetG4RunManager();
     RunManager->SetNumberOfThreads(nthreads);
         
+    
+
+
     manager.SetUserInit(new PhysicsList());
 
     if (!charge_mass.empty()) {
         
         G4UImanager::GetUIpointer()->ApplyCommand("/FCP/Physics/ParticleProperties " + charge_mass);
     }
+
+
+    
+    
+
+
 
     manager.SetInteractive(true);
     
