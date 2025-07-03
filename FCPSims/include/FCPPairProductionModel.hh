@@ -1,3 +1,19 @@
+// $Id$
+////////////////////////////////////////////////////////////////////////
+//                                                                    //
+//  File:        FCPPairProduction.cc                                 //
+//  Description: e+e- pair production by FCPs                         //
+//                                                                    //
+//  Adapted from G4MuPairProduction by Samir Banik.                       //
+//                                                                    //
+//  Author:	 Samir Banik                                          //
+//  Date:        9-th May 2017                                        //
+//                                                                    //
+////////////////////////////////////////////////////////////////////////
+
+
+
+
 #ifndef FCPPairProductionModel_h
 #define FCPPairProductionModel_h 1
 
