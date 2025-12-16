@@ -61,8 +61,8 @@ int main(int argc, char **argv) {
     
 
 
-    #Remove the commented out command below when running locally and what to see visualizations, when running on a cluster this command will cause code to fail
-    #manager.SetInteractive(true);
+    //Remove the commented out command below when running locally and what to see visualizations, when running on a cluster this command will cause code to fail
+    //manager.SetInteractive(true);
     
     if (!macroName.empty())
         manager.IncludeMacroFile(macroName);
