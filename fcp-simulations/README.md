@@ -14,13 +14,17 @@ credit: https://github.com/SamirBanik/FCP_Simulation, for FCP Code, and https://
 
 ---
 
+
+
+
+
 ## Installation
 
 Instructions on how to set up the project:
 
 Assumes remage has been installed using docker. This example works locally, for LONGLEAF or NERSC, it works the same just open a shell inside of the remage container or .sif file
 
-```bash
+
 #Pulls the remage container, open a terminal session inside of the container
 
 docker pull legendexp/remage
@@ -43,14 +47,19 @@ make -j$(nproc)
 
 #Now check your build folder and there should be an executable called 'FCP_Simulations'
 
+
+
 ---
+
+
+
 
 ## Usage
 
 See fcp_main.cc for details on commands
 FCP Physics is already included. You can choose to simulate FCPs through the same methodology as standard Geant4 particles
 
-```bash
+
 /RMG/Generator/Select GPS
 /gps/particle FCP+
 
