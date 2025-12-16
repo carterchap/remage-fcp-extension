@@ -1,3 +1,5 @@
+#Register sensitive detectors, this is all the germanium detectors
+
 /RMG/Geometry/RegisterDetector Germanium V02160A 1104000
 /RMG/Geometry/RegisterDetector Germanium V02160B 1104001
 /RMG/Geometry/RegisterDetector Germanium V05261B 1104002
@@ -100,8 +102,11 @@
 /RMG/Geometry/RegisterDetector Germanium P00748A 1089603
 /RMG/Geometry/RegisterDetector Germanium P00698B 1089604
 
-
+#Initialize
 /run/initialize
+
+
+#Controls the output format
 
 /RMG/Output/Germanium/DiscardZeroEnergyHits true
 /RMG/Output/Germanium/StoreTrackID true
@@ -109,7 +114,7 @@
 /RMG/Output/Germanium/Cluster/PreClusterOutputs true
 
 
-
+#Choose the particle, size of plane, shape of plane, and angles to emit particles from, as wel as energies of the particles
 /RMG/Generator/Select GPS
 /gps/particle FCP+
 /gps/pos/type Plane
@@ -123,5 +128,5 @@
 
 /gps/energy 300 GeV
 
-
+#Choose number of particle to simulate, REMEMBER THIS NUMBER
 /run/beamOn 10000000
