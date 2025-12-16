@@ -63,7 +63,7 @@ FCP Physics is already included. You can choose to simulate FCPs through the sam
 /RMG/Generator/Select GPS
 /gps/particle FCP+
 
-# To run a simulation, open a terminal session inside of the container
+To run a simulation, open a terminal session inside of the container
 
 docker run -it --rm \
   --entrypoint /bin/bash \
