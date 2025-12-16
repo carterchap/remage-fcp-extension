@@ -1,0 +1,127 @@
+/RMG/Geometry/RegisterDetector Germanium V02160A 1104000
+/RMG/Geometry/RegisterDetector Germanium V02160B 1104001
+/RMG/Geometry/RegisterDetector Germanium V05261B 1104002
+/RMG/Geometry/RegisterDetector Germanium V05266A 1104003
+/RMG/Geometry/RegisterDetector Germanium V05266B 1104004
+/RMG/Geometry/RegisterDetector Germanium V05268B 1104005
+/RMG/Geometry/RegisterDetector Germanium V05612A 1105600
+/RMG/Geometry/RegisterDetector Germanium V07647A 1105602
+/RMG/Geometry/RegisterDetector Germanium V07647B 1105603
+/RMG/Geometry/RegisterDetector Germanium B00035C 1107202
+/RMG/Geometry/RegisterDetector Germanium C000RG1 1107203
+/RMG/Geometry/RegisterDetector Germanium C000RG2 1107204
+/RMG/Geometry/RegisterDetector Germanium C00ANG3 1107205
+/RMG/Geometry/RegisterDetector Germanium C00ANG5 1108800
+/RMG/Geometry/RegisterDetector Germanium C00ANG2 1108801
+/RMG/Geometry/RegisterDetector Germanium V00074A 1108802
+/RMG/Geometry/RegisterDetector Germanium V04549A 1108803
+/RMG/Geometry/RegisterDetector Germanium V07298B 1108804
+/RMG/Geometry/RegisterDetector Germanium B00032B 1110402
+/RMG/Geometry/RegisterDetector Germanium B00091C 1110403
+/RMG/Geometry/RegisterDetector Germanium P00574B 1110404
+/RMG/Geometry/RegisterDetector Germanium P00665A 1110405
+/RMG/Geometry/RegisterDetector Germanium P00698A 1112000
+/RMG/Geometry/RegisterDetector Germanium P00712A 1112001
+/RMG/Geometry/RegisterDetector Germanium P00909C 1112002
+/RMG/Geometry/RegisterDetector Germanium P00661B 1112003
+/RMG/Geometry/RegisterDetector Germanium P00574A 1112004
+/RMG/Geometry/RegisterDetector Germanium B00000B 1112005
+/RMG/Geometry/RegisterDetector Germanium B00000C 1113600
+/RMG/Geometry/RegisterDetector Germanium B00061A 1113601
+/RMG/Geometry/RegisterDetector Germanium B00061C 1113602
+/RMG/Geometry/RegisterDetector Germanium B00076C 1113603
+/RMG/Geometry/RegisterDetector Germanium B00079B 1113604
+/RMG/Geometry/RegisterDetector Germanium B00079C 1113605
+/RMG/Geometry/RegisterDetector Germanium V01386A 1115200
+/RMG/Geometry/RegisterDetector Germanium V01403A 1115201
+/RMG/Geometry/RegisterDetector Germanium V01404A 1115202
+/RMG/Geometry/RegisterDetector Germanium V01406A 1115203
+/RMG/Geometry/RegisterDetector Germanium V01415A 1115204
+/RMG/Geometry/RegisterDetector Germanium V08682B 1116801
+/RMG/Geometry/RegisterDetector Germanium V08682A 1116802
+/RMG/Geometry/RegisterDetector Germanium V09372A 1116803
+/RMG/Geometry/RegisterDetector Germanium V09374A 1116804
+/RMG/Geometry/RegisterDetector Germanium V09724A 1116805
+/RMG/Geometry/RegisterDetector Germanium V02162B 1118402
+/RMG/Geometry/RegisterDetector Germanium V02166B 1118403
+/RMG/Geometry/RegisterDetector Germanium V04199A 1118404
+/RMG/Geometry/RegisterDetector Germanium V04545A 1118405
+/RMG/Geometry/RegisterDetector Germanium V05267B 1120000
+/RMG/Geometry/RegisterDetector Germanium V07646A 1120001
+/RMG/Geometry/RegisterDetector Germanium V07302B 1120002
+/RMG/Geometry/RegisterDetector Germanium B00089C 1120003
+/RMG/Geometry/RegisterDetector Germanium B00089D 1120004
+/RMG/Geometry/RegisterDetector Germanium C00ANG4 1120005
+/RMG/Geometry/RegisterDetector Germanium V00048B 1121600
+/RMG/Geometry/RegisterDetector Germanium V00050A 1121601
+/RMG/Geometry/RegisterDetector Germanium V00050B 1121602
+/RMG/Geometry/RegisterDetector Germanium V01387A 1121603
+/RMG/Geometry/RegisterDetector Germanium V05261A 1121604
+/RMG/Geometry/RegisterDetector Germanium V05268A 1121605
+/RMG/Geometry/RegisterDetector Germanium V07302A 1078400
+/RMG/Geometry/RegisterDetector Germanium B00002A 1078405
+/RMG/Geometry/RegisterDetector Germanium B00089A 1080000
+/RMG/Geometry/RegisterDetector Germanium B00091A 1080001
+/RMG/Geometry/RegisterDetector Germanium B00091D 1080002
+/RMG/Geometry/RegisterDetector Germanium P00537A 1080003
+/RMG/Geometry/RegisterDetector Germanium P00538A 1080004
+/RMG/Geometry/RegisterDetector Germanium P00573A 1080005
+/RMG/Geometry/RegisterDetector Germanium P00661C 1081600
+/RMG/Geometry/RegisterDetector Germanium P00662C 1081601
+/RMG/Geometry/RegisterDetector Germanium P00664A 1081602
+/RMG/Geometry/RegisterDetector Germanium P00665C 1081603
+/RMG/Geometry/RegisterDetector Germanium P00748B 1081604
+/RMG/Geometry/RegisterDetector Germanium P00909B 1081605
+/RMG/Geometry/RegisterDetector Germanium B00091B 1083200
+/RMG/Geometry/RegisterDetector Germanium B00000D 1083201
+/RMG/Geometry/RegisterDetector Germanium B00002C 1083202
+/RMG/Geometry/RegisterDetector Germanium B00032C 1083203
+/RMG/Geometry/RegisterDetector Germanium B00032D 1083204
+/RMG/Geometry/RegisterDetector Germanium B00035A 1083205
+/RMG/Geometry/RegisterDetector Germanium B00035B 1084800
+/RMG/Geometry/RegisterDetector Germanium B00061B 1084801
+/RMG/Geometry/RegisterDetector Germanium B00089B 1084802
+/RMG/Geometry/RegisterDetector Germanium V00048A 1084803
+/RMG/Geometry/RegisterDetector Germanium V01240A 1084804
+/RMG/Geometry/RegisterDetector Germanium V01389A 1084805
+/RMG/Geometry/RegisterDetector Germanium V05267A 1086400
+/RMG/Geometry/RegisterDetector Germanium V05612B 1086401
+/RMG/Geometry/RegisterDetector Germanium B00000A 1086403
+/RMG/Geometry/RegisterDetector Germanium B00002B 1086404
+/RMG/Geometry/RegisterDetector Germanium B00032A 1086405
+/RMG/Geometry/RegisterDetector Germanium P00538B 1088000
+/RMG/Geometry/RegisterDetector Germanium P00573B 1088001
+/RMG/Geometry/RegisterDetector Germanium P00575A 1088002
+/RMG/Geometry/RegisterDetector Germanium P00574C 1088003
+/RMG/Geometry/RegisterDetector Germanium P00661A 1088004
+/RMG/Geometry/RegisterDetector Germanium P00662A 1089600
+/RMG/Geometry/RegisterDetector Germanium P00662B 1089601
+/RMG/Geometry/RegisterDetector Germanium P00665B 1089602
+/RMG/Geometry/RegisterDetector Germanium P00748A 1089603
+/RMG/Geometry/RegisterDetector Germanium P00698B 1089604
+
+
+/run/initialize
+
+/RMG/Output/Germanium/DiscardZeroEnergyHits true
+/RMG/Output/Germanium/StoreTrackID true
+/RMG/Output/Germanium/StepPositionMode Both
+/RMG/Output/Germanium/Cluster/PreClusterOutputs true
+
+
+
+/RMG/Generator/Select GPS
+/gps/particle FCP+
+/gps/pos/type Plane
+/gps/pos/shape Circle
+/gps/pos/centre 0 0 2 m
+/gps/pos/radius 2.5 m
+/gps/ang/type iso
+/gps/ang/maxtheta 90 deg
+/gps/ang/mintheta 5 deg
+
+
+/gps/energy 300 GeV
+
+
+/run/beamOn 10000000
