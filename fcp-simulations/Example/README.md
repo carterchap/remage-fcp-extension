@@ -1,12 +1,10 @@
 # Full Exmaple Walkthrough of Simulating FCPs using remage extension
 
 This readme will include examples of simulating FCPs using longleaf, and also will include how to run jupyter notebooks used for post-processing
+This is also only works for Longleaf/NERSC
 
 
-## Step 1, SSH into LongLeaf or NERSC
-
-
-## Step 2, Install remage,LEGEND-base, convert to a .sif file 
+### Step 1, Install remage,LEGEND-base, convert to a .sif file 
 
 ```bash
 apptainer build remage.sif docker://legendexp/remage
@@ -15,7 +13,7 @@ apptainer build legend-base.sif docker://legendexp/legend-base
 
 ```
 
-### Step 3, extend remage 
+### Step 2, extend remage 
 
 ```bash
 
@@ -34,7 +32,7 @@ make -j$(nproc)
 
 ```
 
-### Step 4, Run the simulation
+### Step 3, Run the simulation
 
 
 Creata a batch script 
