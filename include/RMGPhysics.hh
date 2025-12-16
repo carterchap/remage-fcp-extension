@@ -123,9 +123,6 @@ class RMGPhysics : public G4VModularPhysicsList {
     /** @brief Set the low energy EM options from a string, for use in the messenger. */
     void SetHadronicPhysicsListOptionString(std::string option);
 
-    /** @brief Option to turn on thermal neutron scattering */
-    void SetUseThermalScattering(bool val) { fUseThermalScattering = val; }
-
     /** @brief Option to turn on gamma emisson with correct angular correlations. */
     void SetUseGammaAngCorr(bool);
 
@@ -144,9 +141,10 @@ class RMGPhysics : public G4VModularPhysicsList {
     ProdCutStore fProdCuts = {};
     ProdCutStore fProdCutsSensitive = {};
     bool fConstructOptical = false;
-    bool fUseOpticalCustomWLS = false;
-    bool fUseThermalScattering = false;
+    bool fUseOpticalCustomWLS = true;
+    bool fUseNeutronThermalScattering = false;
     bool fUseGrabmayrGammaCascades = false;
+    bool fUseInnerBremsstrahlung = false;
     LowEnergyEMOption fLowEnergyEMOption = LowEnergyEMOption::kLivermore;
     HadronicPhysicsListOption fHadronicPhysicsListOption = HadronicPhysicsListOption::kNone;
     G4double fLowEnergyRange = 250 * CLHEP::eV;

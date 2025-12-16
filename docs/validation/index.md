@@ -13,10 +13,12 @@ versioninfo
 :caption: Sections
 :maxdepth: 2
 
+bxdecay0
 confinement
 distances
 nist
 observables-ge
+processes-ib
 ```
 
 ```{toctree}

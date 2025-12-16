@@ -1,4 +1,4 @@
-name: CI
+name: Build & Test
 
 on:
   push:
@@ -31,7 +31,7 @@ jobs:
     container: docker://legendexp/remage-base:${{ matrix.container_version }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # we need a fully checked-out repo to get version from setuptools-scm.
           fetch-depth: 0
@@ -46,7 +46,7 @@ jobs:
           mkdir build
           cd build
           cmake -DRMG_BUILD_EXAMPLES=1 -DBUILD_TESTING=ON -DRMG_BUILD_DOCS=OFF .. | tee -a build.log
-          make | tee -a build.log
+          make -j$(nproc) | tee -a build.log
           make install | tee -a build.log
 
       - name: check version equality
@@ -60,7 +60,7 @@ jobs:
           fi
 
       - name: Compare checked-in doc dump with current result
-        if: ${{ matrix.container_version != 'slim' }}
+        if: ${{ matrix.container_version == 'latest' }}
         run: |
           cd build
           cp ../docs/rmg-commands.md ../docs/rmg-commands.md.bak
@@ -77,21 +77,16 @@ jobs:
             exit 1
           fi
 
-      - name: Setup and start xvfb (enables Geant4 visualization)
-        run: |
-          Xvfb :99 -screen 0 1920x1080x24 &
-
       - name: Run full test suite
         if: ${{ matrix.container_version != 'slim' }}
-        env:
-          DISPLAY: :99
         run: |
           cd build
-          ctest --output-on-failure
+          ctest --label-exclude mt -j$(nproc) --output-on-failure
+          ctest --label-regex mt -j1 --output-on-failure
 
       - name: Upload test suite outputs to GitHub
         if: ${{ always() && matrix.container_version != 'slim' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: remage-test-output-g4flavor-${{ matrix.container_version }}
           # artifacts must have a ".output*" extension
@@ -99,11 +94,10 @@ jobs:
 
       - name: Run minimal test suite
         if: ${{ matrix.container_version == 'slim' }}
-        env:
-          DISPLAY: :99
         run: |
           cd build
-          ctest --output-on-failure --label-exclude 'extra|vis'
+          ctest --label-exclude 'extra|vis|mt' -j$(nproc) --output-on-failure
+          ctest --label-regex mt --label-exclude 'extra|vis' -j --output-on-failure
 
       - name: Test docs building
         if: ${{ matrix.container_version != 'slim' }}
@@ -115,7 +109,7 @@ jobs:
 
       - name: Upload validation report to GitHub
         if: ${{ always() && matrix.container_version != 'slim' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: remage-validation-report-g4flavor-${{ matrix.container_version }}
           path: build/docs/validation/_build/
@@ -135,7 +129,7 @@ jobs:
         shell: bash -el {0}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # we need a fully checked-out repo to get version from setuptools-scm.
           fetch-depth: 0
@@ -157,21 +151,28 @@ jobs:
           brew update
           brew install opencascade cgal gmp mpfr boost
 
-          conda install conda-forge::geant4
+          conda install conda-forge::geant4 conda-forge::bxdecay0 "conda-forge::python<3.14"
           echo "CMAKE_PREFIX_PATH=$CONDA_PREFIX" >> $GITHUB_ENV
 
       - name: Build project
         run: |
           mkdir build
           cd build
-          cmake -DCMAKE_INSTALL_PREFIX=../local -DRMG_BUILD_EXAMPLES=1 -DBUILD_TESTING=ON -DRMG_BUILD_DOCS=OFF ..
-          make
+          cmake \
+            -D CMAKE_INSTALL_PREFIX=../local \
+            -D Python3_EXECUTABLE="$(command -v python)" \
+            -D RMG_BUILD_EXAMPLES=1 \
+            -D BUILD_TESTING=ON \
+            -D RMG_BUILD_DOCS=OFF \
+            ..
+          make -j$(nproc)
           make install
 
       - name: Run full test suite
         run: |
           cd build
-          ctest --output-on-failure
+          ctest --label-exclude mt -j$(nproc) --output-on-failure
+          ctest --label-regex mt -j1 --output-on-failure
 
       - name: Minimally test installed executable
         run: |
@@ -191,7 +192,7 @@ jobs:
 
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: remage-validation-report-g4flavor-stable
           path: output/

@@ -25,9 +25,16 @@ enum RMGDetectorType {
 };
 
 struct RMGDetectorMetadata {
+    /** @brief detector type */
     RMGDetectorType type;
+    /** @brief detector (unique) identifier */
     int uid;
+    /** @brief name of the referenced physical volume */
     std::string name;
+    /** @brief copy number of the referenced physical volume */
+    int copy_nr;
+    /** @brief ntuple name override or empty string */
+    std::string ntuple_name;
 };
 
 #endif

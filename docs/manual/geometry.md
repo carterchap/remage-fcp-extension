@@ -1,4 +1,4 @@
-(geometry)=
+(manual-geometry)=
 
 # Experimental geometry
 
@@ -34,40 +34,78 @@ Full geometry implementations based on these tools:
 
 :::
 
+(manual-geometry-register-sens-det)=
+
 ## Registering sensitive detectors
 
 Sensitive detector volumes must be registered so that particle interactions are
 recorded in the output. In _remage_, this can be done in several ways. Each
-detector has a unique id (`uid`) and a _type_, which determines how hits are
-processed and stored.
+detector has a unique id (UID) and a _type_, which determines how hits in a
+physical volume (or in a group of them) are processed and stored. Detector of
+type `Germanium`, `Scintillator` and `Optical` are currently supported, see
+{ref}`manual-output` for more details.
 
 :::{note}
 
-Custom detector types cannot currently be registered at runtime.
+User-defined detector types cannot currently be registered at runtime.
 
 :::
 
 The simplest method is to use the
 <project:../rmg-commands.md#rmggeometryregisterdetector> macro command:
 
-```
+```geant4
 /RMG/Geometry/RegisterDetector Germanium B00000B 1
-/RMG/Geometry/RegisterDetector Germanium C000RG1 2
+/RMG/Geometry/RegisterDetector Germanium C000RG1 2 1
 ```
 
-This registers the physical volumes `B00000B` and `C000RG1` as `Germanium`
-detectors with `uid`s 1 and 2. If the copy number is not specified, `0` is used
-by default. See {ref}`output` for details on how detector types affect output.
+This registers the physical volume `B00000B`, and the `C000RG1` volume with copy
+number `1` as `Germanium` detectors with UIDs 1 and 2 respectively. Because for
+`B00000B` no copy number was specified, this will register all `B00000B` named
+volumes if there are multiple with different copy numbers. This command now also
+accepts regex patterns (respecting the
+[default `std::regex_match` grammar](https://en.cppreference.com/w/cpp/regex/ecmascript.html)):
 
-Alternatively, detectors can be imported from a GDML file that includes
+```geant4
+/RMG/Geometry/RegisterDetector Germanium B.* 1
+```
+
+registers all physical volumes starting with `B`. If there are multiple volumes
+matching the pattern, they will all be registered alphabetically under
+incrementing UIDs. This means the first alphabetical `B.*` match will be
+registered under UID 1, the second match will be registered with UID 2 and so
+on. It is therefore the responsibility of the user to make sure that no UID will
+be duplicated, which is detected by _remage_ and results in an error.
+
+Alternatively, one might want to assign the same UID to multiple physical
+volumes, i.e. as if they constitute a single detector unit. In such a scenario,
+there would be no way to distinguish hits from different volumes in the
+simulation output (except from the coordinates in post-processing). In this
+case, the fifth argument (`allow_uid_reuse`) has to be set to `true`:
+
+```geant4
+/RMG/Geometry/RegisterDetector Germanium .*_cu_.* 1 .* true
+```
+
+This would register any volume with name matching the regular expression
+`.*_cu_.*` under the UID 1. In this case the UIDs will **not** be incremented
+for multiple matches.
+
+This alone might produce unexpected output, when
+<project:../rmg-commands.md#rmgoutputntupleusevolumename> is enabled. To solve
+the problem, a sixth argument (`ntuple_name`) can be used to set the name of the
+resulting ntuple. The same fifth and sixth arguments must be used for all
+detectors that share a uid. In this case, the specified name will be used as the
+table name in the output file, instead of the volume name.
+
+Last but not least, detectors can be imported from a GDML file that includes
 metadata, using the
 <project:../rmg-commands.md#rmggeometryregisterdetectorsfromgdml> command.
 
 :::{tip}
 
 The `legend-pygeom-tools` package automatically includes such metadata when
-writing GDML with
-[`write_pygeom()`](https://legend-pygeom-tools.readthedocs.io/en/stable/api/pygeomtools.html#pygeomtools.write.write_pygeom).
+writing GDML with {func}`pygeomtools.write.write_pygeom`.
 
 :::
 
@@ -103,6 +141,8 @@ remage> /RMG/Geometry/PrintListOfPhysicalVolumes
 [Summary -> Total: 171 volumes
 ```
 
+## Checking geometry
+
 :::{tip}
 
 As seen above, the Geant4 overlap checker is enabled by default if GDML input is
@@ -110,3 +150,41 @@ provided. It can be disabled with the
 <project:../rmg-commands.md#rmggeometrygdmldisableoverlapcheck> command.
 
 :::
+
+Apart from the on-by-default builtin overlap checking, _remage_ provides a means
+to perform additional geometry checks that go beyond. For this it will be
+checking the integraity of the volume hierarchy along random geantino paths, and
+verify that the geometry navigator is always never mis-navigating the
+implemented hierarchy.
+
+The user has to initialize this test in a specialized macro, that needs to be
+adapted to the geometry dimensions:
+
+```geant4
+/RMG/Output/ActivateOutputScheme GeometryCheck
+
+/run/initialize
+
+/RMG/Generator/Confine Volume
+/RMG/Generator/Confinement/SampleOnSurface
+/RMG/Generator/Confinement/FirstSamplingVolume Geometrical
+
+/RMG/Generator/Confinement/Geometrical/AddSolid Box
+/RMG/Generator/Confinement/Geometrical/CenterPositionX 0 m
+/RMG/Generator/Confinement/Geometrical/CenterPositionY 0 m
+/RMG/Generator/Confinement/Geometrical/CenterPositionZ 0 m
+/RMG/Generator/Confinement/Geometrical/Box/XLength 10 m
+/RMG/Generator/Confinement/Geometrical/Box/YLength 10 m
+/RMG/Generator/Confinement/Geometrical/Box/ZLength 10 m
+
+/RMG/Generator/Select GPS
+/gps/particle     geantino
+/gps/energy       1 MeV
+/gps/ang/type     iso
+
+/run/beamOn {n}
+```
+
+The sampling surface has to be adjusted so that it lies fully within a single
+volume and also fully contains all daughter volumes of that volume, otherwise
+the check will not be correctly performed.

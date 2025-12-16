@@ -1,4 +1,4 @@
-(running)=
+(manual-running)=
 
 # Running simulations
 
@@ -30,24 +30,63 @@ The most useful options include:
 - `macros` – macro files or inline command strings. If the given argument is not
   an existing file it is interpreted as a newline-separated list of commands.
 - `-g, --gdml-files` – include one or more GDML geometry files (see
-  {ref}`geometry`).
-- `-o, --output-file` – sensitive detector hits output file (see {ref}`output`).
+  {ref}`manual-geometry`).
+- `-o, --output-file` – sensitive detector hits output file (see
+  {ref}`manual-output`).
 - `-i, --interactive` – keep the application open after executing macros and
   present a Geant4 prompt.
-- `-t, --threads` – number of worker threads to use.
+- `-t, --threads` – number of worker threads to use (this cannot be combined
+  with `-P/--procs`).
+- `-P, --procs` – number of worker processes to use (this cannot be combined
+  with `-t/--threads`).
 - `-w, --overwrite` – overwrite an existing output file.
 - `-q, --quiet`/`-v, --verbose`/`-l, --log-level` – control the verbosity.
   Logging levels are `debug`, `detail`, `summary`, `warning`, `error`, `fatal`,
   and `nothing` (e.g. `-l debug`).
 - `--version`/`--version-rich` – print version information and exit.
 - `-m, --merge-output-files` – merge thread-specific output files at the end of
-  execution (see {ref}`output`).
+  execution (see {ref}`manual-output`).
 - `--flat-output` – store each Geant4 step as its own row in the output (see
-  {ref}`output`).
+  {ref}`manual-output`).
 - `--time-window-in-us` – time window used when reshaping hits (see
-  {ref}`output`).
+  {ref}`manual-output`).
 - `-s, --macro-substitutions` – provide `key=value` pairs that will be expanded
   as Geant4 aliases in macros.
+
+## Parallel execution
+
+_remage_ supports two ways of parallelising simulations, each with its own
+advantages and limitations:
+
+### Geant4 multithreading
+
+This mode is enabled by passing `--threads INTEGER` to the command line.
+_remage_ does not implement its own multithreading but delegates it to Geant4.
+This approach is memory-efficient because shared objects (such as the geometry)
+are instantiated only once.
+
+:::{warning}
+
+The performance in multithreaded mode does not scale linearly with the number of
+threads (see [issue #287](https://github.com/legend-exp/remage/issues/287) for
+details).
+
+:::
+
+### Multiple processes
+
+This mode is enabled by passing `--procs INTEGER` to the command line. The
+Python wrapper (see the {ref}`dev-guide` for details) can launch several
+independent _remage_ instances, each running a single process. This usually
+provides near 1:1 performance scaling but is more resource-hungry because every
+process carries a full memory footprint.
+
+:::{admonition} In short
+
+If memory is the limiting factor, prefer `--threads`; otherwise, try `--procs`
+for better throughput.
+
+:::
 
 ## Batch versus interactive mode
 

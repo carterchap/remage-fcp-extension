@@ -15,29 +15,67 @@
 
 #include "RMGNavigationTools.hh"
 
+#include <format>
 #include <map>
+#include <queue>
 #include <set>
 
 #include "G4LogicalVolume.hh"
 #include "G4LogicalVolumeStore.hh"
 #include "G4Material.hh"
 #include "G4PhysicalVolumeStore.hh"
+#include "G4TransportationManager.hh"
 #include "G4UnitsTable.hh"
 
 #include "RMGLog.hh"
 
-#include "fmt/core.h"
+std::set<G4VPhysicalVolume*> RMGNavigationTools::FindPhysicalVolume(
+    std::string name,
+    std::string copy_nr
+) {
+  if (copy_nr.empty()) copy_nr = ".*";
+  std::set<G4VPhysicalVolume*> result;
+  auto volume_store = G4PhysicalVolumeStore::GetInstance();
 
-G4VPhysicalVolume* RMGNavigationTools::FindPhysicalVolume(std::string name, int copy_nr) {
-  auto const& store = *G4PhysicalVolumeStore::GetInstance();
-  auto result = std::find_if(store.begin(), store.end(), [&name, &copy_nr](auto v) {
-    return (std::string(v->GetName()) == name && v->GetCopyNo() == copy_nr);
-  });
-  if (result == store.end()) {
-    RMGLog::Out(RMGLog::error, "Physical volume ", name, " not found in store. Returning nullptr");
-    return nullptr;
+  // scan all search patterns provided by the user
+  RMGLog::OutFormat(
+      RMGLog::detail,
+      "Scanning for Physical volumes matching pattern '{}'['{}']",
+      name,
+      copy_nr
+  );
+
+  bool found = false;
+  // scan the volume store for matches
+  for (auto&& it = volume_store->begin(); it != volume_store->end(); it++) {
+    if (std::regex_match((*it)->GetName(), std::regex(name)) and
+        std::regex_match(std::to_string((*it)->GetCopyNo()), std::regex(copy_nr))) {
+
+      // insert it in our collection
+      result.insert(*it);
+
+      RMGLog::OutFormat(
+          RMGLog::detail,
+          "Found '{}[{}]' matching the pattern",
+          (*it)->GetName(),
+          (*it)->GetCopyNo()
+      );
+
+      found = true;
+    }
   }
-  return *result;
+  if (!found) {
+    RMGLog::Out(
+        RMGLog::warning,
+        "No physical volumes names found matching pattern '",
+        name,
+        "' and copy numbers matching pattern '",
+        copy_nr,
+        "'"
+    );
+  }
+
+  return result;
 }
 
 G4LogicalVolume* RMGNavigationTools::FindLogicalVolume(std::string name) {
@@ -112,7 +150,7 @@ void RMGNavigationTools::PrintListOfLogicalVolumes() {
 
     volumes.insert(
         {v->GetName(),
-         fmt::format(
+         std::format(
              "{} daugh. // {} // {} // {} // {} // {}",
              v->GetNoDaughters(),
              std::string(G4BestUnit(v->GetMaterial()->GetDensity(), "Volumic Mass")),
@@ -155,6 +193,79 @@ void RMGNavigationTools::PrintListOfPhysicalVolumes() {
   for (const auto& v : volumes) RMGLog::Out(RMGLog::summary, v);
   RMGLog::Out(RMGLog::summary, "");
   RMGLog::Out(RMGLog::summary, "Total: ", volumes.size(), " volumes");
+}
+
+
+std::vector<RMGNavigationTools::VolumeTreeEntry> RMGNavigationTools::FindGlobalPositions(
+    G4VPhysicalVolume* pv
+) {
+  auto world_volume = G4TransportationManager::GetTransportationManager()
+                          ->GetNavigatorForTracking()
+                          ->GetWorldVolume();
+
+  std::vector<VolumeTreeEntry> trees;
+  // queue for paths to the mother volume that still have to be searched.
+  std::queue<VolumeTreeEntry> q;
+  q.emplace(pv);
+
+  for (; !q.empty(); q.pop()) {
+    auto v = q.front();
+
+    if (!v.physvol)
+      RMGLog::OutDev(
+          RMGLog::fatal,
+          "nullptr detected in loop condition, this is unexpected. ",
+          "Blame RMGNavigationTools::FindDirectMother?"
+      );
+
+    v.partial_rotations.push_back(v.physvol->GetObjectRotationValue());
+    v.partial_translations.push_back(v.physvol->GetObjectTranslation());
+
+    v.vol_global_rotation = v.partial_rotations.back() * v.vol_global_rotation;
+
+    for (auto m : RMGNavigationTools::FindDirectMothers(v.physvol)) {
+      if (m != world_volume) {
+        auto v_m = VolumeTreeEntry(v); // create a copy of the current helper object.
+        v_m.physvol = m;
+        q.push(v_m);
+      } else { // we finished that branch!
+        trees.push_back(v);
+      }
+    }
+  }
+
+  RMGLog::OutFormatDev(
+      RMGLog::debug,
+      "Found {} ways to reach world volume from {}",
+      trees.size(),
+      pv->GetName()
+  );
+
+  // finalize all found paths to the mother volume.
+  for (auto&& v : trees) {
+    // world volume not included in loop
+    v.partial_translations.emplace_back(); // origin
+    v.partial_rotations.emplace_back();    // identity
+
+    // partial_rotations[0] and partial_translations[0] refer to the target
+    // volume partial_rotations[1] and partial_translations[1], to the direct
+    // mother, etc. It is necessary to rotate with respect to the frame of the
+    // mother. If there are no rotations (or only the target volume is
+    // rotated): rotations are identity matrices and vol_global_translation =
+    // sum(partial_translations)
+    for (size_t i = 0; i < v.partial_translations.size() - 1; i++) {
+      G4ThreeVector tmp = v.partial_translations[i];
+      for (size_t j = i + 1; j < v.partial_rotations.size() - 1; j++) {
+        tmp *= v.partial_rotations[j];
+      }
+      v.vol_global_translation += tmp;
+    }
+  }
+
+  if (trees.empty())
+    RMGLog::OutDev(RMGLog::fatal, "No path to world volume found, that should not be!");
+
+  return trees;
 }
 
 // vim: tabstop=2 shiftwidth=2 expandtab

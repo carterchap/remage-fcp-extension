@@ -1,3 +1,6 @@
+include(ProcessorCount)
+ProcessorCount(NUM_CORES)
+
 # collect auxiliary files
 file(
   GLOB _aux
@@ -22,9 +25,9 @@ foreach(_mac ${_macros})
   add_test(NAME confinement/${_mac} COMMAND ${REMAGE_PYEXE} -g gdml/geometry.gdml -o test-out.root
                                             -- macros/${_mac})
 
-  add_test(NAME confinement-mt/${_mac} COMMAND ${REMAGE_PYEXE} -g gdml/geometry.gdml -t 2 -o
-                                               test-out.root -- macros/${_mac})
-  set_tests_properties(confinement-mt/${_mac} PROPERTIES LABELS mt)
+  add_test(NAME confinement-mt/${_mac} COMMAND ${REMAGE_PYEXE} -g gdml/geometry.gdml -t
+                                               ${NUM_CORES} -o test-out.root -- macros/${_mac})
+  set_tests_properties(confinement-mt/${_mac} PROPERTIES LABELS mt PROCESSORS ${NUM_CORES})
 
   add_test(NAME confinement-vis/${_mac}
            COMMAND ${REMAGE_PYEXE} -g gdml/geometry.gdml -o test-out.root -- macros/_vis.mac
@@ -33,6 +36,17 @@ foreach(_mac ${_macros})
   set_tests_properties(confinement-vis/${_mac} PROPERTIES SKIP_REGULAR_EXPRESSION
                                                           "couldn't open display")
 endforeach()
+
+# this test needs another geometry.
+add_test(NAME confinement/with-daughters.mac COMMAND ${REMAGE_PYEXE} -g gdml/geometry_boxes.gdml
+                                                     -o test-out.root -- macros/with-daughters.mac)
+
+add_test(NAME confinement-vis/with-daughters.mac
+         COMMAND ${REMAGE_PYEXE} -g gdml/geometry_boxes.gdml -o test-out.root -- macros/_vis.mac
+                 macros/with-daughters.mac macros/_vis-export.mac)
+set_tests_properties(confinement-vis/with-daughters.mac PROPERTIES LABELS vis)
+set_tests_properties(confinement-vis/with-daughters.mac PROPERTIES SKIP_REGULAR_EXPRESSION
+                                                                   "couldn't open display")
 
 # generate the GDML file
 add_test(NAME confinement-ge/gen-gdml COMMAND ${PYTHONPATH} make_ge_array_gdml.py)
@@ -220,7 +234,7 @@ foreach(det ${_solids})
 
   set_tests_properties(
     confinement-surface/relative-fractions-${det}
-    PROPERTIES LABELS extra FIXTURES_REQUIRED confine-surface-${det} ENVIRONMENT
+    PROPERTIES LABELS "extra;flaky" FIXTURES_REQUIRED confine-surface-${det} ENVIRONMENT
                MPLCONFIGDIR=${CMAKE_SOURCE_DIR}/tests)
 
 endforeach()

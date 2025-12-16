@@ -30,17 +30,19 @@ class RMGOpticalOutputScheme : public RMGVOutputScheme {
 
     RMGOpticalOutputScheme();
 
-    void AssignOutputNames(G4AnalysisManager* ana_man) override;
+    void AssignOutputNames(G4AnalysisManager*) override;
     void StoreEvent(const G4Event*) override;
 
   protected:
 
-    [[nodiscard]] std::string GetNtuplenameFlat() const override { return "optical"; }
+    [[nodiscard]] std::string GetNtupleNameFlat() const override { return "optical"; }
 
   private:
 
     std::unique_ptr<G4GenericMessenger> fMessenger;
     void DefineCommands();
+
+    bool fStoreSinglePrecisionEnergy = true;
 };
 
 #endif

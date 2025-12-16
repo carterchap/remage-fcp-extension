@@ -30,6 +30,8 @@ endforeach()
 # TODO: add new images here
 # cmake-format: off
 set(TESTS_IMAGES
+    bxdecay0/double-beta-e-combined-primary-energy.output.png
+    bxdecay0/double-beta-e-primary-opening-angle.output.png
     confinement/native-surface.output.jpeg
     confinement/native-volume.output.jpeg
     confinement/complex-surface.output.jpeg
@@ -46,6 +48,7 @@ set(TESTS_IMAGES
     confinement/vis-surface-tubby.output.jpeg
     confinement/vis-surface-uni.output.jpeg
     confinement/vis-surface-trd.output.jpeg
+    confinement/with-daughters.output.jpeg
     confinement/confinement.simple-solids-surface-box-3d.output.png
     confinement/confinement.simple-solids-surface-con-3d.output.png
     confinement/confinement.simple-solids-surface-sub-3d.output.png
@@ -107,7 +110,10 @@ set(TESTS_IMAGES
     observables/beta-observables.surf-active-energy.eff.output.png
     observables/beta-observables.surf-active-energy.spec.output.png
     observables/beta-observables.surf-max-z.eff.output.png
-    observables/beta-observables.surf-max-z.spec.output.png)
+    observables/beta-observables.surf-max-z.spec.output.png
+    processes/innerbrem-gamma-vertex-energy.output.png
+    processes/innerbrem-signal.output.png
+    processes/innerbrem-difference.output.png)
 
 # cmake-format: on
 

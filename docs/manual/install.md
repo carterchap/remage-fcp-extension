@@ -1,11 +1,13 @@
-(install)=
+(manual-install)=
 
 # Installation
 
-## Pre-built binaries
-
 The recommended and fastest way of running _remage_ is through pre-built
-software containers. Stable releases are regularly made available
+software containers. Alternatively, the project can be built from source.
+
+## Pre-built container images
+
+Stable releases are regularly made available
 [on Docker Hub](https://hub.docker.com/r/legendexp/remage). To obtain and run
 the latest just do:
 
@@ -21,8 +23,26 @@ $ apptainer build remage_latest.sif docker://legendexp/remage:latest
 $ apptainer run remage_latest.sif --help
 ```
 
-If containers do not work for you, see the next section to learn how to build
-and install from source.
+More information is available in {ref}`manual-containers`. If containers do not
+work for you, see the next section to learn how to build and install from source
+or from conda-forge.
+
+## Pre-built packages on conda-forge
+
+Stable releases are made available
+[on conda-forge](https://anaconda.org/conda-forge/remage) for Linux and macOS
+systems. To install the latest version use:
+
+```console
+$ conda install conda-forge::remage
+```
+
+:::{note}
+
+The conda-forge provided binaries does not support the ROOT output format, but
+fully supports LH5/HDF5.
+
+:::
 
 ## Building from source
 

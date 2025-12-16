@@ -4,7 +4,6 @@ import sys
 
 import awkward as ak
 import hist
-import tol_colors as tc
 from lgdo import lh5
 from matplotlib import colors
 from matplotlib import pyplot as plt
@@ -18,26 +17,19 @@ plt.rcParams["lines.linewidth"] = 1
 plt.rcParams["figure.figsize"] = (12, 4)
 plt.rcParams["font.size"] = 12
 
-vib = tc.tol_cset("vibrant")
-vset = tc.tol_cset("vibrant")
-mset = tc.tol_cset("muted")
-
-
 # Get the BuPu colormap
 cmap = plt.get_cmap("cividis")
 
 
-def plot_tracks(data, idx, savename=None):
-    fig, ax = plt.subplots(figsize=(6, 6))
+def plot_tracks(_data, idx, savename=None):
+    _fig, ax = plt.subplots(figsize=(6, 6))
 
-    data = ak.Array(
-        {
-            name: ak.flatten(data[name])
-            for name in ["xloc", "yloc", "zloc", "trackid", "evtid"]
-        }
+    data = _data[_data.evtid == idx]
+
+    data_tmp = ak.Array(
+        {name: ak.flatten(data[name]) for name in ["xloc", "yloc", "zloc", "trackid"]}
     )
 
-    data_tmp = data[data.evtid == idx]
     x0, z0 = data_tmp[0].xloc, data_tmp[0].zloc
 
     for _id, track in enumerate(data_tmp.trackid):
@@ -49,7 +41,7 @@ def plot_tracks(data, idx, savename=None):
             alpha=1,
             linewidth=2,
             label=label,
-            color=vset.blue,
+            color="tab:blue",
         )
 
     ax.scatter(
@@ -57,7 +49,7 @@ def plot_tracks(data, idx, savename=None):
         1000 * data_tmp.zloc - 1000 * z0,
         s=20,
         label="steps",
-        color=vset.red,
+        color="tab:red",
     )
 
     prefix = "m"
@@ -65,7 +57,6 @@ def plot_tracks(data, idx, savename=None):
     ax.set_ylabel(f"z -z0 [{prefix}m]")
 
     ax.legend(fontsize=14)
-    plt.tight_layout()
 
     if savename is not None:
         plt.savefig(savename)
@@ -74,7 +65,7 @@ def plot_tracks(data, idx, savename=None):
 def plot_hist2d(
     dist, step_len, n=-1, high_stp=300, high_dist=5000, bins=500, savename=None
 ):
-    fig, ax = plt.subplots(1, 1, figsize=(12, 4))
+    _fig, ax = plt.subplots(1, 1, figsize=(12, 4))
 
     # Create a 2D histogram
     h = ax.hist2d(
@@ -91,22 +82,18 @@ def plot_hist2d(
     ax.set_xlabel("Distance to Surface [um]")
     ax.set_ylabel("Step length [um]")
 
-    plt.tight_layout()
-
     if savename is not None:
         plt.savefig(savename)
 
 
 def plot_steps(steps, bins=100, range=(0, 100), savename=None):
-    fig, ax = plt.subplots(figsize=(12, 4))
+    _fig, ax = plt.subplots(figsize=(12, 4))
     h = hist.new.Reg(bins, range[0], range[1], name="steps").Double().fill(steps)
     h.plot(ax=ax, **style)
     ax.set_ylabel("Counts")
     ax.set_xlabel("Step size [um]")
     ax.set_xlim(range[0], range[1])
     ax.set_yscale("linear")
-
-    plt.tight_layout()
 
     if savename is not None:
         plt.savefig(savename)

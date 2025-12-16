@@ -17,6 +17,7 @@
 
 #include <cstdlib>
 #include <ctime>
+#include <fmt/chrono.h>
 #include <limits>
 #include <random>
 #include <unistd.h>
@@ -38,10 +39,9 @@
 #include "RMGManager.hh"
 #include "RMGMasterGenerator.hh"
 #include "RMGOpticalOutputScheme.hh"
+#include "RMGOutputManager.hh"
 #include "RMGRun.hh"
 #include "RMGVGenerator.hh"
-
-#include "fmt/chrono.h"
 
 G4Run* RMGRunAction::GenerateRun() {
   fRMGRun = new RMGRun();
@@ -58,8 +58,8 @@ void RMGRunAction::SetupAnalysisManager() {
   if (fIsAnaManInitialized) return;
   fIsAnaManInitialized = true;
 
-  auto rmg_man = RMGManager::Instance();
-  auto det_cons = rmg_man->GetDetectorConstruction();
+  auto rmg_man = RMGOutputManager::Instance();
+  auto det_cons = RMGManager::Instance()->GetDetectorConstruction();
   if (det_cons->GetAllActiveOutputSchemes().empty()) {
     rmg_man->EnablePersistency(false);
     fIsPersistencyEnabled = false;
@@ -72,12 +72,18 @@ void RMGRunAction::SetupAnalysisManager() {
   // otherwise the ntuples get placed in /default_ntuples (at least with HDF5 output)
   ana_man->SetNtupleDirectoryName(rmg_man->GetOutputNtupleDirectory());
 
+  // inform downstream consumers about the ntuples directory
+  if (this->IsMaster()) {
+    RMGIpc::SendIpcNonBlocking(
+        RMGIpc::CreateMessage("ntuple_output_directory", rmg_man->GetOutputNtupleDirectory())
+    );
+  }
+
   if (RMGLog::GetLogLevel() <= RMGLog::debug) ana_man->SetVerboseLevel(10);
   else ana_man->SetVerboseLevel(0);
 
-  // do it only for activated detectors (have to ask to the manager)
+  // do it only for activated detectors
   for (const auto& oscheme : det_cons->GetAllActiveOutputSchemes()) {
-
     fOutputDataFields.emplace_back(oscheme);
 
     oscheme->SetNtuplePerDetector(rmg_man->GetOutputNtuplePerDetector());
@@ -90,12 +96,12 @@ void RMGRunAction::BeginOfRunAction(const G4Run*) {
 
   RMGLog::OutDev(RMGLog::debug, "Start of run action");
 
-  auto manager = RMGManager::Instance();
+  auto rmg_man = RMGOutputManager::Instance();
 
   if (fIsPersistencyEnabled) this->SetupAnalysisManager();
 
-  if (!manager->HasOutputFileName()) {
-    manager->EnablePersistency(false);
+  if (!rmg_man->HasOutputFileName()) {
+    rmg_man->EnablePersistency(false);
     fIsPersistencyEnabled = false;
   }
 
@@ -104,7 +110,7 @@ void RMGRunAction::BeginOfRunAction(const G4Run*) {
     fCurrentOutputFile = BuildOutputFile();
 
     // check if the directory actually exists and is writable.
-    auto parent_path = fs::absolute(fCurrentOutputFile.first).parent_path();
+    auto parent_path = fs::absolute(fCurrentOutputFile.tmp).parent_path();
     if (!fs::is_directory(parent_path) || access(parent_path.string().c_str(), W_OK | X_OK) != 0) {
       RMGLog::Out(
           RMGLog::fatal,
@@ -115,32 +121,32 @@ void RMGRunAction::BeginOfRunAction(const G4Run*) {
     }
 
     auto ana_man = G4AnalysisManager::Instance();
-    auto fn = fCurrentOutputFile.first.string();
+    auto fn = fCurrentOutputFile.tmp.string();
 
     // ntuple merging is only supported for some file types. Unfortunately, the function to
     // check for this capability is private, so we have to replicate this here. Also it can only be
     // called after opening the file, when setting the flag does not work any more :-(
-    auto file_type = fCurrentOutputFile.first.extension();
+    auto file_type = fCurrentOutputFile.tmp.extension();
     if (file_type != ".csv" && file_type != ".CSV" && file_type != ".xml" && file_type != ".XML" &&
         file_type != ".hdf5" && file_type != ".HDF5") {
-      ana_man->SetNtupleMerging(!manager->IsExecSequential());
+      ana_man->SetNtupleMerging(!RMGManager::Instance()->IsExecSequential());
     }
 
     if (this->IsMaster()) {
       std::string orig_fn;
-      if (fCurrentOutputFile.first != fCurrentOutputFile.second)
-        orig_fn = " (for " + fCurrentOutputFile.second.string() + ")";
+      if (fCurrentOutputFile.tmp != fCurrentOutputFile.original)
+        orig_fn = " (for " + fCurrentOutputFile.original.string() + ")";
       RMGLog::Out(RMGLog::summary, "Opening output file: ", fn, orig_fn);
     }
-    if (fCurrentOutputFile.first != fCurrentOutputFile.second && std::filesystem::exists(fn)) {
+    if (fCurrentOutputFile.tmp != fCurrentOutputFile.original && std::filesystem::exists(fn)) {
       RMGLog::Out(RMGLog::fatal, "Temporary file ", fn, " already exists?");
     }
 
     // notify wrapper about temp files created on master or worker threads.
-    auto orig_file_type = fCurrentOutputFile.second.extension();
-    if (fCurrentOutputFile.first != fCurrentOutputFile.second &&
+    auto orig_file_type = fCurrentOutputFile.original.extension();
+    if (fCurrentOutputFile.tmp != fCurrentOutputFile.original &&
         (orig_file_type == ".lh5" || orig_file_type == ".LH5")) {
-      auto worker_tmp = fs::path(G4Analysis::GetTnFileName(fCurrentOutputFile.first.string(), "hdf5"));
+      auto worker_tmp = GetWorkerTmpPath(fCurrentOutputFile.tmp, "hdf5");
       RMGIpc::SendIpcNonBlocking(RMGIpc::CreateMessage("tmpfile", worker_tmp));
     }
 
@@ -155,8 +161,8 @@ void RMGRunAction::BeginOfRunAction(const G4Run*) {
   if (!fIsPersistencyEnabled && this->IsMaster()) {
     // Warn user if persistency is disabled if there are detectors defined.
     auto level = RMGLog::summary;
-    if (!manager->GetDetectorConstruction()->GetAllActiveOutputSchemes().empty() &&
-        !manager->HasOutputFileNameNone()) {
+    if (!RMGManager::Instance()->GetDetectorConstruction()->GetAllActiveOutputSchemes().empty() &&
+        !rmg_man->HasOutputFileNameNone()) {
       level = RMGLog::warning;
     }
     RMGLog::Out(level, "Object persistency disabled");
@@ -175,14 +181,16 @@ void RMGRunAction::BeginOfRunAction(const G4Run*) {
   fRMGRun->SetStartTime(std::chrono::system_clock::now());
 
   if (this->IsMaster()) {
-    auto tt = fmt::localtime(std::chrono::system_clock::to_time_t(fRMGRun->GetStartTime()));
+    const time_t start_time = std::chrono::system_clock::to_time_t(fRMGRun->GetStartTime());
+    tm local_start_time{};
 
     RMGLog::OutFormat(
         RMGLog::summary,
-        "Starting run nr. {:d}. Current local time is {:%d-%m-%Y %H:%M:%S}",
+        "Starting run nr. {:d}. Current local time is {:%d-%m-%Y %H:%M:%S %Z}",
         fRMGRun->GetRunID(),
-        tt
+        *::localtime_r(&start_time, &local_start_time)
     );
+
     RMGLog::OutFormat(
         RMGLog::summary,
         "Number of events to be processed: {:d}",
@@ -193,9 +201,12 @@ void RMGRunAction::BeginOfRunAction(const G4Run*) {
   auto g4manager = G4RunManager::GetRunManager();
   auto tot_events = g4manager->GetNumberOfEventsToBeProcessed();
 
-  fCurrentPrintModulo = manager->GetPrintModulo();
+  fCurrentPrintModulo = RMGManager::Instance()->GetPrintModulo();
   if (fCurrentPrintModulo <= 0 and tot_events >= 100) fCurrentPrintModulo = tot_events / 10;
   else if (tot_events < 100) fCurrentPrintModulo = 100;
+
+  int proc_num = RMGManager::Instance()->GetProcessNumberOffset();
+  for (auto& oscheme : fOutputDataFields) { oscheme->SetEventIDOffset(proc_num * tot_events); }
 }
 
 void RMGRunAction::EndOfRunAction(const G4Run*) {
@@ -205,16 +216,19 @@ void RMGRunAction::EndOfRunAction(const G4Run*) {
   // report some stats
   if (this->IsMaster()) {
     auto time_now = std::chrono::system_clock::now();
+    const time_t end_time = std::chrono::system_clock::to_time_t(time_now);
+    tm local_end_time{};
 
     int n_ev = fRMGRun->GetNumberOfEvent();
     int n_ev_requested = fRMGRun->GetNumberOfEventToBeProcessed();
 
     RMGLog::OutFormat(
         RMGLog::summary,
-        "Run nr. {:d} completed. {:d} events simulated. Current local time is {:%d-%m-%Y %H:%M:%S}",
+        "Run nr. {:d} completed. {:d} events simulated. Current local time is {:%d-%m-%Y %H:%M:%S "
+        "%Z}",
         fRMGRun->GetRunID(),
         n_ev,
-        fmt::localtime(std::chrono::system_clock::to_time_t(time_now))
+        *::localtime_r(&end_time, &local_end_time)
     );
     if (n_ev != n_ev_requested) {
       RMGLog::OutFormat(
@@ -284,17 +298,22 @@ void RMGRunAction::EndOfRunAction(const G4Run*) {
 // extension. So if the user specifies a LH5 file as output, we have to create a temporary file
 // with a hdf5 extensions. Later, we will rename it.
 
-std::pair<fs::path, fs::path> RMGRunAction::BuildOutputFile() const {
-  auto manager = RMGManager::Instance();
+RMGRunAction::OutputFilePaths RMGRunAction::BuildOutputFile() const {
+  auto rmg_man = RMGOutputManager::Instance();
 
-  if (!manager->HasOutputFileName()) { RMGLog::OutDev(RMGLog::fatal, "tried to open file 'none'"); }
+  if (!rmg_man->HasOutputFileName()) { RMGLog::OutDev(RMGLog::fatal, "tried to open file 'none'"); }
 
   // TODO: realpath
-  auto path = fs::path(manager->GetOutputFileName());
-  auto path_for_overwrite = fs::path(
-      G4Analysis::GetTnFileName(path.string(), path.extension().string())
-  );
-  if (fs::exists(path_for_overwrite) && !manager->GetOutputOverwriteFiles()) {
+  auto path = fs::path(rmg_man->GetOutputFileName());
+  // In multi-processing mode, add a suffix to the (main) output file name.
+  if (RMGManager::Instance()->IsMultiProcessing()) {
+    path = path.replace_filename(
+        path.stem().string() + "_p" +
+        std::to_string(RMGManager::Instance()->GetProcessNumberOffset()) + path.extension().string()
+    );
+  }
+  auto path_for_overwrite = fs::path(GetWorkerTmpPath(path, path.extension().string()));
+  if (fs::exists(path_for_overwrite) && !rmg_man->GetOutputOverwriteFiles()) {
     RMGLog::Out(RMGLog::fatal, "Output file ", path_for_overwrite.string(), " does already exists.");
   }
 
@@ -309,9 +328,9 @@ std::pair<fs::path, fs::path> RMGRunAction::BuildOutputFile() const {
     std::string new_fn = ".rmg-tmp-" + std::to_string(dist(rd)) + "." + path.stem().string() +
                          ".hdf5";
     auto new_path = path.parent_path() / new_fn;
-    return {new_path, path};
+    return OutputFilePaths{new_path, path};
   }
-  return {path, path};
+  return OutputFilePaths{path, path};
 }
 
 /// \cond this creates weird namespaces @<long number>
@@ -322,23 +341,23 @@ namespace {
 
 void RMGRunAction::PostprocessOutputFile() const {
 
-  if (fCurrentOutputFile.first == fCurrentOutputFile.second && fs::exists(fCurrentOutputFile.first)) {
-    RMGIpc::SendIpcNonBlocking(RMGIpc::CreateMessage("output", fCurrentOutputFile.first));
+  if (fCurrentOutputFile.tmp == fCurrentOutputFile.original && fs::exists(fCurrentOutputFile.tmp)) {
+    RMGIpc::SendIpcNonBlocking(RMGIpc::CreateMessage("output", fCurrentOutputFile.tmp));
     return;
   }
 
   // we need the main output file in the python wrapper.
   if (this->IsMaster()) {
     RMGIpc::SendIpcNonBlocking(
-        RMGIpc::CreateMessage("output_main", fCurrentOutputFile.second.string())
+        RMGIpc::CreateMessage("output_main", RMGOutputManager::Instance()->GetOutputFileName())
     );
   }
 
   // HDF5 C++ might not be thread-safe?
   G4AutoLock l(&RMGConvertLH5Mutex);
 
-  auto worker_tmp = fs::path(G4Analysis::GetTnFileName(fCurrentOutputFile.first.string(), "hdf5"));
-  auto worker_lh5 = fs::path(G4Analysis::GetTnFileName(fCurrentOutputFile.second.string(), "lh5"));
+  auto worker_tmp = GetWorkerTmpPath(fCurrentOutputFile.tmp, "hdf5");
+  auto worker_lh5 = GetWorkerTmpPath(fCurrentOutputFile.original, "lh5");
 
   if (fs::exists(worker_tmp)) {
     RMGIpc::SendIpcNonBlocking(RMGIpc::CreateMessage("output", worker_lh5));
@@ -357,9 +376,16 @@ void RMGRunAction::PostprocessOutputFile() const {
   }
 
 #if RMG_HAS_HDF5
-  auto nt_dir = RMGManager::Instance()->GetOutputNtupleDirectory();
+  auto rmg_man = RMGOutputManager::Instance();
   // note: do not do a dry-run here, as it takes a lot of memory.
-  if (!RMGConvertLH5::ConvertToLH5(worker_tmp.string(), nt_dir, false)) {
+  auto result = RMGConvertLH5::ConvertToLH5(
+      worker_tmp.string(),
+      rmg_man->GetOutputNtupleDirectory(),
+      rmg_man->GetAuxNtupleNames(),
+      rmg_man->GetNtupleIDs(),
+      false
+  );
+  if (!result) {
     RMGLog::Out(
         RMGLog::error,
         "Conversion of output file ",
@@ -386,6 +412,10 @@ void RMGRunAction::PostprocessOutputFile() const {
         e.what()
     );
   }
+}
+
+fs::path RMGRunAction::GetWorkerTmpPath(fs::path path, std::string extension) const {
+  return {G4Analysis::GetTnFileName(path.string(), extension)};
 }
 
 // vim: tabstop=2 shiftwidth=2 expandtab

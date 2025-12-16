@@ -15,9 +15,11 @@ set(PROJECT_PUBLIC_HEADERS
     ${_root}/include/RMGGeneratorG4Gun.hh
     ${_root}/include/RMGGeneratorGPS.hh
     ${_root}/include/RMGGeneratorUtil.hh
+    ${_root}/include/RMGGeometryCheckOutputScheme.hh
     ${_root}/include/RMGGermaniumDetector.hh
     ${_root}/include/RMGGermaniumOutputScheme.hh
     ${_root}/include/RMGGrabmayrGCReader.hh
+    ${_root}/include/RMGInnerBremsstrahlungProcess.hh
     ${_root}/include/RMGIsotopeFilterScheme.hh
     ${_root}/include/RMGIpc.hh
     ${_root}/include/RMGLog.hh
@@ -29,6 +31,7 @@ set(PROJECT_PUBLIC_HEADERS
     ${_root}/include/RMGOpticalOutputScheme.hh
     ${_root}/include/RMGOpWLSProcess.hh
     ${_root}/include/RMGParticleFilterScheme.hh
+    ${_root}/include/RMGOutputManager.hh
     ${_root}/include/RMGOutputTools.hh
     ${_root}/include/RMGPhysics.hh
     ${_root}/include/RMGRunAction.hh
@@ -61,9 +64,11 @@ set(PROJECT_SOURCES
     ${_root}/src/RMGGeneratorFromFile.cc
     ${_root}/src/RMGGeneratorMUSUNCosmicMuons.cc
     ${_root}/src/RMGGeneratorUtil.cc
+    ${_root}/src/RMGGeometryCheckOutputScheme.cc
     ${_root}/src/RMGGermaniumDetector.cc
     ${_root}/src/RMGGermaniumOutputScheme.cc
     ${_root}/src/RMGGrabmayrGCReader.cc
+    ${_root}/src/RMGInnerBremsstrahlungProcess.cc
     ${_root}/src/RMGIpc.cc
     ${_root}/src/RMGIsotopeFilterScheme.cc
     ${_root}/src/RMGLog.cc
@@ -75,6 +80,7 @@ set(PROJECT_SOURCES
     ${_root}/src/RMGOpticalOutputScheme.cc
     ${_root}/src/RMGOpWLSProcess.cc
     ${_root}/src/RMGParticleFilterScheme.cc
+    ${_root}/src/RMGOutputManager.cc
     ${_root}/src/RMGOutputTools.cc
     ${_root}/src/RMGPhysics.cc
     ${_root}/src/RMGRunAction.cc
@@ -119,6 +125,9 @@ endif()
 # Ensure clients are aware of the minimum C++ standard we were compiled with
 target_compile_features(remage PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
 
+# for initial C++20 compatibility with a C++17 compiled ROOT image. TODO: remove later
+target_compile_options(remage PRIVATE -Wno-cpp)
+
 target_include_directories(remage PUBLIC "$<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>"
                                          $<INSTALL_INTERFACE:include/remage>)
 
@@ -129,7 +138,7 @@ target_link_libraries(
   PRIVATE magic_enum::magic_enum)
 
 if(BxDecay0_FOUND)
-  target_link_libraries(remage PRIVATE BxDecay0::BxDecay0_Geant4)
+  target_link_libraries(remage PRIVATE BxDecay0::BxDecay0_Geant4 BxDecay0::BxDecay0)
 endif()
 
 if(ROOT_FOUND)
@@ -169,7 +178,7 @@ target_link_libraries(
   PRIVATE CLI11::CLI11 magic_enum::magic_enum)
 set_target_properties(remage-doc-dump-cli PROPERTIES OUTPUT_NAME remage-doc-dump)
 if(BxDecay0_FOUND)
-  target_link_libraries(remage-doc-dump-cli PRIVATE BxDecay0::BxDecay0_Geant4)
+  target_link_libraries(remage-doc-dump-cli PRIVATE BxDecay0::BxDecay0_Geant4 BxDecay0::BxDecay0)
 endif()
 add_custom_target(
   remage-doc-dump
@@ -179,13 +188,6 @@ add_custom_target(
 
 # executable for converting remage output HDF5 with ntuples to LH5 tables
 if(RMG_HAS_HDF5)
-  add_executable(remage-to-lh5 ${_root}/src/remage-to-lh5.cc)
-  target_link_libraries(
-    remage-to-lh5
-    PUBLIC remage
-    PRIVATE CLI11::CLI11 magic_enum::magic_enum)
-  set_target_properties(remage-to-lh5 PROPERTIES OUTPUT_NAME remage-to-lh5)
-
   add_executable(remage-from-lh5 ${_root}/src/remage-from-lh5.cc)
   target_link_libraries(
     remage-from-lh5
@@ -212,6 +214,3 @@ install(
 
 # install CLI binaries
 install(TARGETS remage-cli-cpp RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-if(RMG_HAS_HDF5)
-  install(TARGETS remage-to-lh5 RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
-endif()

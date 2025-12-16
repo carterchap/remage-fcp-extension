@@ -63,7 +63,7 @@ void RMGMasterGenerator::GeneratePrimaries(G4Event* event) {
       );
       RMGManager::Instance()->GetG4RunManager()->AbortRun();
     }
-    RMGLog::OutDev(RMGLog::debug, "Primary vertex position: ", vertex / CLHEP::cm, " cm");
+    RMGLog::OutDev(RMGLog::debug_event, "Primary vertex position: ", vertex / CLHEP::cm, " cm");
 
     // pass the generated vertex to the actual generator
     fGeneratorObj->SetParticlePosition(vertex);
@@ -109,9 +109,7 @@ void RMGMasterGenerator::SetGenerator(RMGMasterGenerator::Generator gen) {
     case Generator::kGPS: fGeneratorObj = std::make_unique<RMGGeneratorGPS>(); break;
     case Generator::kBxDecay0:
 #if RMG_HAS_BXDECAY0
-      // NOTE: release ownership here, BxDecay0 will own the pointer (sigh...)
-      // fVertexGeneratorObj will hold nullptr after a call to release()
-      fGeneratorObj = std::make_unique<RMGGeneratorDecay0>(fVertexGeneratorObj.release());
+      fGeneratorObj = std::make_unique<RMGGeneratorDecay0>(this);
 #else
       RMGLog::OutFormat(
           RMGLog::fatal,

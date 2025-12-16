@@ -16,18 +16,15 @@
 #include "RMGEventAction.hh"
 
 #include <chrono>
-#include <sstream>
 
 #include "G4AnalysisManager.hh"
 #include "G4RunManager.hh"
 
 #include "RMGLog.hh"
 #include "RMGManager.hh"
+#include "RMGOutputManager.hh"
 #include "RMGRun.hh"
 #include "RMGRunAction.hh"
-
-#include "fmt/chrono.h"
-#include "magic_enum/magic_enum.hpp"
 
 RMGEventAction::RMGEventAction(RMGRunAction* run_action) : fRunAction(run_action) {}
 
@@ -71,7 +68,7 @@ void RMGEventAction::BeginOfEventAction(const G4Event* event) {
     );
   }
 
-  if (RMGManager::Instance()->IsPersistencyEnabled()) { fRunAction->ClearOutputDataFields(); }
+  if (RMGOutputManager::Instance()->IsPersistencyEnabled()) { fRunAction->ClearOutputDataFields(); }
 }
 
 void RMGEventAction::EndOfEventAction(const G4Event* event) {

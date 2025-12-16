@@ -23,10 +23,10 @@
 #include "G4SDManager.hh"
 
 #include "RMGHardware.hh"
-#include "RMGIpc.hh"
 #include "RMGLog.hh"
 #include "RMGManager.hh"
 #include "RMGOpticalDetector.hh"
+#include "RMGOutputManager.hh"
 
 namespace u = CLHEP;
 
@@ -35,8 +35,8 @@ RMGOpticalOutputScheme::RMGOpticalOutputScheme() { this->DefineCommands(); }
 // invoked in RMGRunAction::SetupAnalysisManager()
 void RMGOpticalOutputScheme::AssignOutputNames(G4AnalysisManager* ana_man) {
 
-  auto rmg_man = RMGManager::Instance();
-  const auto det_cons = rmg_man->GetDetectorConstruction();
+  auto rmg_man = RMGOutputManager::Instance();
+  const auto det_cons = RMGManager::Instance()->GetDetectorConstruction();
   const auto detectors = det_cons->GetDetectorMetadataMap();
 
   std::set<int> registered_uids;
@@ -52,19 +52,21 @@ void RMGOpticalOutputScheme::AssignOutputNames(G4AnalysisManager* ana_man) {
     auto ntuple_reg = registered_ntuples.find(ntuple_name);
     if (ntuple_reg != registered_ntuples.end()) {
       // ntuple already exists, but also store the ntuple id for the other uid(s).
-      rmg_man->RegisterNtuple(det.second.uid, ntuple_reg->second);
+      rmg_man->RegisterNtuple(det.second.uid, ntuple_reg->second, ntuple_name);
       continue;
     }
 
-    auto id = rmg_man->RegisterNtuple(det.second.uid, ana_man->CreateNtuple(ntuple_name, "Event data"));
-    registered_ntuples.emplace(ntuple_name, id);
-    RMGIpc::SendIpcNonBlocking(
-        RMGIpc::CreateMessage("output_table", std::string("optical\x1e") + ntuple_name)
+    auto id = rmg_man->CreateAndRegisterNtuple(
+        det.second.uid,
+        ntuple_name,
+        "RMGOpticalOutputScheme",
+        ana_man
     );
+    registered_ntuples.emplace(ntuple_name, id);
 
     ana_man->CreateNtupleIColumn(id, "evtid");
     if (!fNtuplePerDetector) { ana_man->CreateNtupleIColumn(id, "det_uid"); }
-    ana_man->CreateNtupleDColumn(id, "wavelength_in_nm");
+    CreateNtupleFOrDColumn(ana_man, id, "wavelength_in_nm", fStoreSinglePrecisionEnergy);
     ana_man->CreateNtupleDColumn(id, "time_in_ns");
 
     ana_man->FinishNtuple(id);
@@ -91,15 +93,15 @@ void RMGOpticalOutputScheme::StoreEvent(const G4Event* event) {
   }
 
   if (hit_coll->entries() <= 0) {
-    RMGLog::OutDev(RMGLog::debug, "Hit collection is empty");
+    RMGLog::OutDev(RMGLog::debug_event, "Hit collection is empty");
     return;
   } else {
-    RMGLog::OutDev(RMGLog::debug, "Hit collection contains ", hit_coll->entries(), " hits");
+    RMGLog::OutDev(RMGLog::debug_event, "Hit collection contains ", hit_coll->entries(), " hits");
   }
 
-  auto rmg_man = RMGManager::Instance();
+  auto rmg_man = RMGOutputManager::Instance();
   if (rmg_man->IsPersistencyEnabled()) {
-    RMGLog::OutDev(RMGLog::debug, "Filling persistent data vectors");
+    RMGLog::OutDev(RMGLog::debug_event, "Filling persistent data vectors");
     const auto ana_man = G4AnalysisManager::Instance();
 
     for (auto hit : *hit_coll->GetVector()) {
@@ -109,11 +111,17 @@ void RMGOpticalOutputScheme::StoreEvent(const G4Event* event) {
       auto ntupleid = rmg_man->GetNtupleID(hit->detector_uid);
 
       int col_id = 0;
-      ana_man->FillNtupleIColumn(ntupleid, col_id++, event->GetEventID());
+      ana_man->FillNtupleIColumn(ntupleid, col_id++, GetEventIDForStorage(event));
       if (!fNtuplePerDetector) {
         ana_man->FillNtupleIColumn(ntupleid, col_id++, hit->detector_uid);
       }
-      ana_man->FillNtupleDColumn(ntupleid, col_id++, hit->photon_wavelength / u::nm);
+      FillNtupleFOrDColumn(
+          ana_man,
+          ntupleid,
+          col_id++,
+          hit->photon_wavelength / u::nm,
+          fStoreSinglePrecisionEnergy
+      );
       ana_man->FillNtupleDColumn(ntupleid, col_id++, hit->global_time / u::ns);
 
       // NOTE: must be called here for hit-oriented output
@@ -122,6 +130,22 @@ void RMGOpticalOutputScheme::StoreEvent(const G4Event* event) {
   }
 }
 
-void RMGOpticalOutputScheme::DefineCommands() {}
+void RMGOpticalOutputScheme::DefineCommands() {
+
+  fMessenger = std::make_unique<G4GenericMessenger>(
+      this,
+      "/RMG/Output/Optical/",
+      "Commands for controlling output from hits in optical detectors."
+  );
+
+  fMessenger->DeclareProperty("StoreSinglePrecisionEnergy", fStoreSinglePrecisionEnergy)
+      .SetGuidance("Use float32 (instead of float64) for wavelength output.")
+      .SetGuidance(
+          std::string("This is ") + (fStoreSinglePrecisionEnergy ? "enabled" : "disabled") + " by default"
+      )
+      .SetParameterName("boolean", true)
+      .SetDefaultValue("true")
+      .SetStates(G4State_Idle);
+}
 
 // vim: tabstop=2 shiftwidth=2 expandtab

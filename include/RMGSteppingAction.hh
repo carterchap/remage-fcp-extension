@@ -22,12 +22,12 @@
 #include "G4UserSteppingAction.hh"
 
 class G4Step;
-class RMGEventAction;
+class RMGRunAction;
 class RMGSteppingAction : public G4UserSteppingAction {
 
   public:
 
-    RMGSteppingAction(RMGEventAction*);
+    RMGSteppingAction(RMGRunAction*);
     ~RMGSteppingAction() = default;
 
     RMGSteppingAction(RMGSteppingAction const&) = delete;
@@ -41,6 +41,9 @@ class RMGSteppingAction : public G4UserSteppingAction {
 
   private:
 
+    RMGRunAction* fRunAction;
+
+    bool fSkipTracking = false;
     double fDaughterKillLifetime = -1;
 
     std::unique_ptr<G4GenericMessenger> fMessenger;

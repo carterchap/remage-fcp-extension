@@ -32,7 +32,7 @@
 #include "RMGNavigationTools.hh"
 #include "RMGVOutputScheme.hh"
 
-/** @brief Class to handle the detector geometry hardware, extends @c G4VUserDetectorConstruction . */
+/** @brief Class to handle the detector geometry hardware, extends @c G4VUserDetectorConstruction. */
 class G4VPhysicalVolume;
 class RMGHardware : public G4VUserDetectorConstruction {
 
@@ -52,9 +52,14 @@ class RMGHardware : public G4VUserDetectorConstruction {
      *  @details Detector geometry can be based on GDML files, parsed with @c G4GDMLParser .
      *  Alternatively geometry can be defined directly by overriding the @c DefineGeometry() method.
      *
-     *  This function defines the geometry and checks for overlaps, if using GDML defined geometry and check
-     *  are not disabled. It also assigns physical volumes to Geant4 regions and sets user step limits.
-     *  This must not modify thread-local state, because it is only called once globally.
+     *  This function defines the geometry and checks for overlaps, if using GDML defined geometry
+     * and check are not disabled. It also assigns physical volumes to Geant4 regions and sets user
+     * step limits. This must not modify thread-local state, because it is only called once
+     * globally.
+     *
+     * This function will call @c RegisterDetector() to register detectors staged with @c
+     * StageDetector() and register all detector types specified with the
+     * `RegisterDetectorsFromGDML` macro command from the GDML.
      *
      * @returns The physical volume of the world.
      */
@@ -67,20 +72,53 @@ class RMGHardware : public G4VUserDetectorConstruction {
      */
     void ConstructSDandField() override;
 
-    /** @brief Register a detector as being a remage sensitive detector.
+    /** @brief Register a physical volume as sensitive detector.
+     *
+     * @details The @c uid is a unique identifier for the detector. It is
+     * mostly used to label the detector in the simulation output. This
+     * function also informs the run action to automatically activate output
+     * schemes for all registered detector types.
+     * This function is called during @c Construct() method to register detectors
+     * from the GDML and to register detectors staged with @c StageDetector() method.
      *
      * @param type The type of detector.
-     * @param pv_name The name of the physical volume.
+     * @param pv_name The name of the physical volume to be registered.
      * @param uid A unique integer identifier for the sensitive volume.
-     * @param copy_nr The copy number for the physical volume.
-     * @param allow_uid_reuse Flag to allow a uid to be reused
+     * @param copy_nr The copy number of the physical volume.
+     * @param allow_uid_reuse Flag to allow assigning the same @c uid to different detectors.
+     * @param ntuple_name Ntuple name override.
      */
     void RegisterDetector(
         RMGDetectorType type,
         const std::string& pv_name,
         int uid,
         int copy_nr = 0,
-        bool allow_uid_reuse = false
+        bool allow_uid_reuse = false,
+        const std::string& ntuple_name = ""
+    );
+
+    /** @brief Stage a detector for later registration.
+     *
+     * @details This function is used to stage detectors following a regex name pattern, which will
+     * be registered later during the @c Construct() method. This function will be called by the @c
+     * /RegisterDetector macro command instead of the @c RegisterDetector() function directly. If
+     * multiple volumes match a regex by given uid, depending on the @c allow_uid_reuse flag, the
+     * uid will be reused or incremented for each detector.
+     *
+     * @param type The type of detector.
+     * @param pv_name The name of the physical volume to be registered.
+     * @param uid A unique integer identifier for the sensitive volume.
+     * @param copy_nr The copy number of the physical volume.
+     * @param allow_uid_reuse Flag to allow assigning the same @c uid to different detectors.
+     * @param ntuple_name Ntuple name override.
+     */
+    void StageDetector(
+        RMGDetectorType type,
+        const std::string& pv_name,
+        int uid,
+        const std::string& copy_nr = "0",
+        bool allow_uid_reuse = false,
+        const std::string& ntuple_name = ""
     );
 
     /** @brief Extract a map of the detector metadata, one element for each sensitive detector physical volume and copy_nr. */
@@ -104,8 +142,8 @@ class RMGHardware : public G4VUserDetectorConstruction {
      */
     void IncludeGDMLFile(std::string filename) { fGDMLFiles.emplace_back(filename); }
 
-    /** @brief Method to define geometry directly, the user must reimplement the base class method. */
-    virtual G4VPhysicalVolume* DefineGeometry() { return nullptr; }
+    /** @brief Get the instance of the world volume, after @ref Construct had been called once. */
+    [[nodiscard]] const G4VPhysicalVolume* GetDefinedWorldVolume() const { return fWorld; }
 
     /** @brief Set the maximum step size.
      *
@@ -120,6 +158,11 @@ class RMGHardware : public G4VUserDetectorConstruction {
     void PrintListOfLogicalVolumes() { RMGNavigationTools::PrintListOfLogicalVolumes(); }
     void PrintListOfPhysicalVolumes() { RMGNavigationTools::PrintListOfPhysicalVolumes(); }
 
+  protected:
+
+    /** @brief Method to define geometry directly, the user must reimplement the base class method. */
+    virtual G4VPhysicalVolume* DefineGeometry() { return nullptr; }
+
   private:
 
     /// List of GDML files to load
@@ -131,6 +174,7 @@ class RMGHardware : public G4VUserDetectorConstruction {
 
     // one element for each sensitive detector physical volume
     std::map<std::pair<std::string, int>, RMGDetectorMetadata> fDetectorMetadata;
+
     std::set<RMGDetectorType> fActiveDetectors;
     static G4ThreadLocal std::vector<std::shared_ptr<RMGVOutputScheme>> fActiveOutputSchemes;
     static G4ThreadLocal bool fActiveDetectorsInitialized;
@@ -149,6 +193,18 @@ class RMGHardware : public G4VUserDetectorConstruction {
      *  for sensitive volumes. Logical volumes of sensitive volumes should be
      *  added to it. */
     G4Region* fSensitiveRegion = new G4Region("SensitiveRegion");
+
+    struct RMGStagedDetector {
+        RMGDetectorType type;
+        std::string name;
+        int uid;
+        std::string copy_nr;
+        bool allow_uid_reuse;
+        std::string ntuple_name;
+    };
+
+    // Holds detector info before initialization
+    std::map<std::pair<std::string, std::string>, RMGStagedDetector> fStagedDetectors;
 };
 
 #endif

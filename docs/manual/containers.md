@@ -1,3 +1,5 @@
+(manual-containers)=
+
 # Software containers
 
 _remage_ is distributed via pre-built Docker container images. The images are
@@ -7,6 +9,19 @@ organized in two layers:
   This should be used when developing _remage_.
 - The **remage image** that installs the actual _remage_ executable and Python
   package on top of the base image.
+
+:::{note}
+
+Apptainer images can be easily generated with, e.g.:
+
+```console
+ $ apptainer build remage.sif docker://legendexp/remage:latest
+```
+
+For more details, have a look at
+[the documentation](https://apptainer.org/docs/user/main/build_a_container.html).
+
+:::
 
 ## Base image
 
@@ -31,7 +46,7 @@ image.
 
 Images are automatically built by Docker Hub for every commit to the main branch
 and for each tagged release. They are pushed to
-[Docker Hub](https://hub.docker.com/repository/docker/legendexp/remage).
+[Docker Hub](https://hub.docker.com/r/legendexp/remage).
 
 There is a tag for every _remage_ release. `latest` points to the most recent
 stable release, whereas `dev` tracks the current state of the `main` branch. If

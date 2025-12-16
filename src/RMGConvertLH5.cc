@@ -21,7 +21,9 @@
 #include <string>
 #include <vector>
 
+#include "RMGIpc.hh"
 #include "RMGLog.hh"
+#include "RMGVOutputScheme.hh"
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -128,7 +130,7 @@ std::string RMGConvertLH5::DataTypeToLGDO(H5::DataType dtype) {
 bool RMGConvertLH5::ConvertNTupleToTable(H5::Group& det_group) {
   const std::string ntuple_name = det_group.getObjName();
   const std::string ntuple_log_prefix = "ntuple " + ntuple_name + " - ";
-  LH5Log(RMGLog::detail, ntuple_log_prefix, "visiting");
+  LH5Log(RMGLog::debug, ntuple_log_prefix, "visiting");
 
   if (!ExistsByType(det_group, "names", H5O_TYPE_DATASET) ||
       !ExistsByType(det_group, "forms", H5O_TYPE_DATASET) ||
@@ -162,10 +164,16 @@ bool RMGConvertLH5::ConvertNTupleToTable(H5::Group& det_group) {
     return false;
   }
 
-  names_string = std::regex_replace(names_string, names_split_re, ",");
-  names_string = std::regex_replace(names_string, names_split_re_end, "");
+  std::sregex_token_iterator it(names_string.begin(), names_string.end(), names_it_re, -1);
+  std::vector<std::string> table_columns;
+  std::copy(it, std::sregex_token_iterator(), std::back_inserter(table_columns));
+  std::sort(table_columns.begin(), table_columns.end());
   // set the table lgdo datatype.
-  SetStringAttribute(det_group, "datatype", "table{" + names_string + "}");
+  SetStringAttribute(
+      det_group,
+      "datatype",
+      "table{" + fmt::format("{}", fmt::join(table_columns, ",")) + "}"
+  );
 
   // unlink the ntuple definition datasets and attributes.
   det_group.unlink("names");
@@ -199,7 +207,7 @@ bool RMGConvertLH5::ConvertNTupleToTable(H5::Group& det_group) {
       std::replace(lgdo_units.begin(), lgdo_units.end(), '\\', '/');
     }
 
-    LH5Log(RMGLog::detail, ntuple_log_prefix, "column ", lgdo_name, ", with units ", lgdo_units);
+    LH5Log(RMGLog::debug, ntuple_log_prefix, "column ", lgdo_name, ", with units ", lgdo_units);
 
     // remove the column group with its child dataset, while preserving the data itself.
     std::string column_tmp = column + "__tmp";
@@ -213,7 +221,7 @@ bool RMGConvertLH5::ConvertNTupleToTable(H5::Group& det_group) {
           std::find(names_parts.begin(), names_parts.end(), column)
       );
       LH5Log(
-          RMGLog::warning,
+          RMGLog::debug,
           ntuple_log_prefix,
           "column ",
           lgdo_name,
@@ -292,28 +300,92 @@ bool RMGConvertLH5::ConvertToLH5Internal() {
     LH5Log(RMGLog::error, "not a remage HDF5 output file (invalid header)?");
     return false;
   }
-  LH5Log(RMGLog::detail, "Opened Geant4 HDF5 file ", fHdf5FileName);
+  LH5Log(RMGLog::debug, "opened Geant4 HDF5 file ", fHdf5FileName);
 
   // rework the ntuples to LGDO tables.
   auto ntuples_group = hfile.openGroup(ntuple_group_name);
   auto ntuples = GetChildren(ntuples_group);
   bool ntuple_success = true;
+
+  std::string links_group_name = "__by_uid__";
+  std::vector<std::string> links;
+  RMGIpc::SendIpcNonBlocking(RMGIpc::CreateMessage("lh5_links_group_name", links_group_name));
+
   for (auto& ntuple : ntuples) {
+    if (ntuple.empty()) LH5Log(RMGLog::fatal, "empty ntuple name, how is this possible?");
+
     auto det_group = ntuples_group.openGroup(ntuple);
     ntuple_success &= ConvertNTupleToTable(det_group);
     det_group.close();
 
-    // grab the "vtx" table and move it one level up
-    if (ntuple == "vtx") { hfile.moveLink(ntuple_group_name + "/" + ntuple, ntuple); }
-    ntuples.erase(std::remove(ntuples.begin(), ntuples.end(), "vtx"), ntuples.end());
+    // Check fNtupleMeta object for an entry whose second field matches the current ntuple name.
+    for (const auto& item : fNtupleMeta) {
+      // item is a pair: item.first is an int, item.second is a std::pair<int, std::string>
+      if (item.second.second == ntuple) {
+        // create group named "links"
+        if (!ExistsByType(ntuples_group, links_group_name, H5O_TYPE_GROUP)) {
+          auto links_group = ntuples_group.createGroup(links_group_name);
+          links_group.close();
+        }
+
+        // form soft link name "detUID" where UID is item.second.first.
+        auto soft_link_name = fmt::format(
+            fmt::runtime(RMGVOutputScheme::fUIDKeyFormatString),
+            item.first
+        );
+        auto soft_link_name_rel = std::string(links_group_name).append("/").append(soft_link_name);
+        // do not create if the soft link already exists.
+        if (!ntuples_group.nameExists(soft_link_name_rel)) {
+          // create a soft link to the current group itself.
+          ntuples_group.link(
+              H5L_TYPE_SOFT,
+              std::string("/").append(ntuple_group_name).append("/").append(ntuple),
+              soft_link_name_rel
+          );
+          links.push_back(soft_link_name);
+          LH5Log(RMGLog::debug, "created soft link ", ntuple_group_name, "/", soft_link_name_rel);
+        }
+        break;
+      }
+    }
+
+    // if this is an auxiliary table, move it one level up out of the group
+    if (fAuxNtuples.find(ntuple) != fAuxNtuples.end()) {
+      LH5Log(RMGLog::debug, "moving ntuple ", ntuple_group_name, "/", ntuple, " one group back");
+      hfile.moveLink(std::string(ntuple_group_name).append("/").append(ntuple), ntuple);
+    }
   }
-  // make the root HDF5 group an LH5 struct.
-  if (!ntuples_group.attrExists("datatype")) {
+
+  // remove aux ntuples from list of ntuples in the stp/ group
+  for (auto& ntuple : fAuxNtuples)
+    ntuples.erase(std::remove(ntuples.begin(), ntuples.end(), ntuple), ntuples.end());
+
+  // if the stp group is empty, remove it
+  if (ntuples.empty()) hfile.unlink(ntuple_group_name);
+  else {
+    // make the root HDF5 group an LH5 struct.
+    if (!ntuples_group.attrExists("datatype")) {
+      LH5Log(RMGLog::debug, "making the root HDF5 group an LH5 struct");
+      std::sort(ntuples.begin(), ntuples.end());
+      SetStringAttribute(
+          ntuples_group,
+          "datatype",
+          "struct{" + fmt::format("{}", fmt::join(ntuples, ",")) + "}"
+      );
+    }
+  }
+
+  // make links group an LH5 struct
+  if (ExistsByType(ntuples_group, links_group_name, H5O_TYPE_GROUP)) {
+    auto links_group = ntuples_group.openGroup(links_group_name);
+    LH5Log(RMGLog::debug, "making the links HDF5 group an LH5 struct");
+    std::sort(links.begin(), links.end());
     SetStringAttribute(
-        ntuples_group,
+        links_group,
         "datatype",
-        "struct{" + fmt::format("{}", fmt::join(ntuples, ",")) + "}"
+        "struct{" + fmt::format("{}", fmt::join(links, ",")) + "}"
     );
+    links_group.close();
   }
 
   if (ntuples_group.attrExists("type")) ntuples_group.removeAttr("type");
@@ -334,7 +406,7 @@ bool RMGConvertLH5::ConvertToLH5Internal() {
 
   hfile.close();
 
-  LH5Log(RMGLog::summary, "Done updating HDF5 file ", fHdf5FileName, " to LH5");
+  LH5Log(RMGLog::detail, "Done updating HDF5 file ", fHdf5FileName, " to LH5");
 
   return ntuple_success;
 }
@@ -342,10 +414,19 @@ bool RMGConvertLH5::ConvertToLH5Internal() {
 bool RMGConvertLH5::ConvertToLH5(
     std::string hdf5_file_name,
     std::string ntuple_group_name,
+    std::set<std::string> aux_ntuples,
+    const std::map<int, std::pair<int, std::string>>& ntuple_meta,
     bool dry_run,
     bool part_of_batch
 ) {
-  auto conv = RMGConvertLH5(hdf5_file_name, ntuple_group_name, dry_run, part_of_batch);
+  auto conv = RMGConvertLH5(
+      hdf5_file_name,
+      ntuple_group_name,
+      aux_ntuples,
+      ntuple_meta,
+      dry_run,
+      part_of_batch
+  );
   try {
     return conv.ConvertToLH5Internal();
   } catch (const H5::Exception& e) {
@@ -376,7 +457,7 @@ bool RMGConvertLH5::ConvertTableToNTuple(
 ) {
   const std::string ntuple_name = det_group.getObjName();
   const std::string ntuple_log_prefix = "ntuple " + ntuple_name + " - ";
-  LH5Log(RMGLog::detail, ntuple_log_prefix, "visiting");
+  LH5Log(RMGLog::debug, ntuple_log_prefix, "visiting");
 
   auto datatype_opt = GetStringAttribute(det_group, "datatype");
   if (!datatype_opt) {
@@ -417,7 +498,7 @@ bool RMGConvertLH5::ConvertTableToNTuple(
     forms_string += HDFDataTypeToForm(dset_column.getDataType()) + std::string("\0", 1);
     dset_column.close();
 
-    LH5Log(RMGLog::detail, ntuple_log_prefix, "column ", lgdo_name, " to ", column);
+    LH5Log(RMGLog::debug, ntuple_log_prefix, "column ", lgdo_name, " to ", column);
 
     // move the column to a pages array.
     std::string column_tmp = column + "__tmp";
@@ -467,6 +548,10 @@ bool RMGConvertLH5::ConvertTableToNTuple(
 bool RMGConvertLH5::ConvertFromLH5Internal(
     std::map<std::string, std::map<std::string, std::string>>& units_map
 ) {
+  if (!fAuxNtuples.empty()) {
+    LH5Log(RMGLog::fatal, "Handling of auxiliary ntuples is not implemented yet");
+  }
+
   // using the core driver with no backing storage will allow to change the file purely in-memory.
   // warning: this will internally allocate approx. the full file size!
   H5::FileAccPropList fapl;
@@ -481,7 +566,7 @@ bool RMGConvertLH5::ConvertFromLH5Internal(
     LH5Log(RMGLog::error, "group ", ntuple_group_name, " is missing");
     return false;
   }
-  LH5Log(RMGLog::detail, "Opened LH5 file ", fHdf5FileName);
+  LH5Log(RMGLog::debug, "Opened LH5 file ", fHdf5FileName);
 
   // rework the LGDO tables to ntuples.
   auto ntuples_group = hfile.openGroup(ntuple_group_name);
@@ -497,7 +582,7 @@ bool RMGConvertLH5::ConvertFromLH5Internal(
 
   hfile.close();
 
-  LH5Log(RMGLog::summary, "Done updating HDF5 file ", fHdf5FileName, " to LH5");
+  LH5Log(RMGLog::detail, "Done updating HDF5 file ", fHdf5FileName, " to LH5");
 
   return ntuple_success;
 }
@@ -509,7 +594,7 @@ bool RMGConvertLH5::ConvertFromLH5(
     bool part_of_batch,
     std::map<std::string, std::map<std::string, std::string>>& units_map
 ) {
-  auto conv = RMGConvertLH5(lh5_file_name, ntuple_group_name, dry_run, part_of_batch);
+  auto conv = RMGConvertLH5(lh5_file_name, ntuple_group_name, {}, {}, dry_run, part_of_batch);
   try {
     return conv.ConvertFromLH5Internal(units_map);
   } catch (const H5::Exception& e) {

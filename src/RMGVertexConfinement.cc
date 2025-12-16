@@ -15,8 +15,6 @@
 
 #include "RMGVertexConfinement.hh"
 
-#include <queue>
-
 #include "G4AutoLock.hh"
 #include "G4Box.hh"
 #include "G4GenericMessenger.hh"
@@ -68,7 +66,17 @@ RMGVertexConfinement::SampleableObject::SampleableObject(
 
   // NOTE: these functions use Monte Carlo methods when the solid is complex. Also note, that
   // they are not thread-safe in all cases!
-  this->volume = solid->GetCubicVolume();
+  auto cubic_volume = solid->GetCubicVolume();
+  if (physvol) {
+    auto no_daughters = physvol->GetLogicalVolume()->GetNoDaughters();
+
+    // increase by one to keep positive in reverse loop.
+    for (auto sample_no = no_daughters; sample_no >= 1; sample_no--) {
+      const auto daughter_pv = physvol->GetLogicalVolume()->GetDaughter(sample_no - 1);
+      cubic_volume -= daughter_pv->GetLogicalVolume()->GetSolid()->GetCubicVolume();
+    }
+  }
+  this->volume = cubic_volume;
   this->surface = solid->GetSurfaceArea();
 }
 
@@ -287,15 +295,19 @@ bool RMGVertexConfinement::SampleableObject::Sample(
 
   if (this->physical_volume) {
     RMGLog::OutFormatDev(
-        RMGLog::debug,
+        RMGLog::debug_event,
         "Chosen random volume: '{}[{}]'",
         this->physical_volume->GetName(),
         this->physical_volume->GetCopyNo()
     );
   } else {
-    RMGLog::OutFormatDev(RMGLog::debug, "Chosen random volume: '{}'", this->sampling_solid->GetName());
+    RMGLog::OutFormatDev(
+        RMGLog::debug_event,
+        "Chosen random volume: '{}'",
+        this->sampling_solid->GetName()
+    );
   }
-  RMGLog::OutDev(RMGLog::debug, "Maximum attempts to find a good vertex: ", max_attempts);
+  RMGLog::OutDev(RMGLog::debug_event, "Maximum attempts to find a good vertex: ", max_attempts);
 
   size_t calls = 0;
 
@@ -307,7 +319,7 @@ bool RMGVertexConfinement::SampleableObject::Sample(
   if (this->native_sample) {
     vertex = this->translation +
              this->rotation * RMGGeneratorUtil::rand(this->sampling_solid, this->surface_sample);
-    RMGLog::OutDev(RMGLog::debug, "Generated vertex: ", vertex / CLHEP::cm, " cm");
+    RMGLog::OutDev(RMGLog::debug_event, "Generated vertex: ", vertex / CLHEP::cm, " cm");
     if (force_containment_check && !this->IsInside(vertex)) {
 
       RMGLog::OutDev(
@@ -341,7 +353,7 @@ bool RMGVertexConfinement::SampleableObject::Sample(
       n_trials++;
       vertex = this->translation +
                this->rotation * RMGGeneratorUtil::rand(this->sampling_solid, false);
-      RMGLog::OutDev(RMGLog::debug, "Vertex was not inside, new vertex: ", vertex / CLHEP::cm, " cm");
+      RMGLog::OutDev(RMGLog::debug_event, "Vertex was not inside, new vertex: ", vertex / CLHEP::cm, " cm");
     }
     if (calls >= max_attempts) {
       RMGLog::Out(
@@ -357,7 +369,7 @@ bool RMGVertexConfinement::SampleableObject::Sample(
   }
 
   RMGLog::OutDev(
-      RMGLog::debug,
+      RMGLog::debug_event,
       "Found good vertex ",
       vertex / CLHEP::cm,
       " cm",
@@ -414,49 +426,24 @@ void RMGVertexConfinement::InitializePhysicalVolumes() {
 
   if (!fPhysicalVolumes.empty() or fPhysicalVolumeNameRegexes.empty()) return;
 
-  auto volume_store = G4PhysicalVolumeStore::GetInstance();
-
   // scan all search patterns provided by the user
   for (size_t i = 0; i < fPhysicalVolumeNameRegexes.size(); ++i) {
-    RMGLog::OutFormat(
-        RMGLog::detail,
-        "Physical volumes matching pattern '{}'['{}']",
-        fPhysicalVolumeNameRegexes.at(i).c_str(),
-        fPhysicalVolumeCopyNrRegexes.at(i).c_str()
-    );
-
-    bool found = false;
     // scan the volume store for matches
-    for (auto&& it = volume_store->begin(); it != volume_store->end(); it++) {
-      if (std::regex_match((*it)->GetName(), std::regex(fPhysicalVolumeNameRegexes.at(i))) and
-          std::regex_match(
-              std::to_string((*it)->GetCopyNo()),
-              std::regex(fPhysicalVolumeCopyNrRegexes.at(i))
-          )) {
+    auto matchingVolumes = RMGNavigationTools::FindPhysicalVolume(
+        fPhysicalVolumeNameRegexes.at(i),
+        fPhysicalVolumeCopyNrRegexes.at(i)
+    );
+    // insert all matches in our collection
+    for (auto volume : matchingVolumes) {
+      // do not specify a bounding solid at this stage
+      fPhysicalVolumes.emplace_back(volume, G4RotationMatrix(), G4ThreeVector(), nullptr);
 
-        // insert it in our collection
-        // do not specify a bounding solid at this stage
-        fPhysicalVolumes.emplace_back(*it, G4RotationMatrix(), G4ThreeVector(), nullptr);
-
-        RMGLog::OutFormat(
-            RMGLog::detail,
-            " · '{}[{}]', volume = {}",
-            (*it)->GetName().c_str(),
-            (*it)->GetCopyNo(),
-            std::string(G4BestUnit(fPhysicalVolumes.data.back().volume, "Volume"))
-        );
-
-        found = true;
-      }
-    }
-    if (!found) {
-      RMGLog::Out(
-          RMGLog::warning,
-          "No physical volumes names found matching pattern '",
-          fPhysicalVolumeNameRegexes.at(i),
-          "' and copy numbers matching pattern '",
-          fPhysicalVolumeCopyNrRegexes.at(i),
-          "'"
+      RMGLog::OutFormat(
+          RMGLog::detail,
+          " · '{}[{}]', volume = {}",
+          volume->GetName().c_str(),
+          volume->GetCopyNo(),
+          std::string(G4BestUnit(fPhysicalVolumes.data.back().volume, "Volume"))
       );
     }
   }
@@ -595,7 +582,7 @@ void RMGVertexConfinement::InitializePhysicalVolumes() {
           RMGLog::fatal,
           "for generic surface sampling SurfaceSampleMaxIntersections, the maximum number of "
           "lines a line can intersect with the surface must be set with "
-          "/RMG/Generator/Confinement/SurfaceSampleMaxIntersections",
+          "/RMG/Generator/Confinement/SurfaceSampleMaxIntersections. ",
           "Note: this can be an overestimate."
       );
     }
@@ -603,68 +590,8 @@ void RMGVertexConfinement::InitializePhysicalVolumes() {
     // determine solid transformation w.r.t. world volume reference
 
     // found paths to the mother volume.
-    std::vector<VolumeTreeEntry> trees;
+    auto trees = RMGNavigationTools::FindGlobalPositions(el.physical_volume);
 
-    // queue for paths to the mother volume that still have to be searched.
-    std::queue<VolumeTreeEntry> q;
-    q.emplace(el.physical_volume);
-
-    for (; !q.empty(); q.pop()) {
-      auto v = q.front();
-
-      if (!v.physvol)
-        RMGLog::OutDev(
-            RMGLog::fatal,
-            "nullptr detected in loop condition, this is unexpected. ",
-            "Blame RMGNavigationTools::FindDirectMother?"
-        );
-
-      v.partial_rotations.push_back(v.physvol->GetObjectRotationValue());
-      v.partial_translations.push_back(v.physvol->GetObjectTranslation());
-
-      v.vol_global_rotation = v.partial_rotations.back() * v.vol_global_rotation;
-
-      for (auto m : RMGNavigationTools::FindDirectMothers(v.physvol)) {
-        if (m != world_volume) {
-          auto v_m = VolumeTreeEntry(v); // create a copy of the current helper object.
-          v_m.physvol = m;
-          q.push(v_m);
-        } else { // we finished that branch!
-          trees.push_back(v);
-        }
-      }
-    }
-
-    RMGLog::OutFormatDev(
-        RMGLog::debug,
-        "Found {} ways to reach world volume from {}",
-        trees.size(),
-        el.physical_volume->GetName()
-    );
-
-    // finalize all found paths to the mother volume.
-    for (auto&& v : trees) {
-      // world volume not included in loop
-      v.partial_translations.emplace_back(); // origin
-      v.partial_rotations.emplace_back();    // identity
-
-      // partial_rotations[0] and partial_translations[0] refer to the target
-      // volume partial_rotations[1] and partial_translations[1], to the direct
-      // mother, etc. It is necessary to rotate with respect to the frame of the
-      // mother. If there are no rotations (or only the target volume is
-      // rotated): rotations are identity matrices and vol_global_translation =
-      // sum(partial_translations)
-      for (size_t i = 0; i < v.partial_translations.size() - 1; i++) {
-        G4ThreeVector tmp = v.partial_translations[i];
-        for (size_t j = i + 1; j < v.partial_rotations.size() - 1; j++) {
-          tmp *= v.partial_rotations[j];
-        }
-        v.vol_global_translation += tmp;
-      }
-    }
-
-    if (trees.empty())
-      RMGLog::OutDev(RMGLog::fatal, "No path to world volume found, that should not be!");
     // assign first found transformation to current sampling solid
     el.rotation = trees[0].vol_global_rotation;
     el.translation = trees[0].vol_global_translation;
@@ -831,7 +758,11 @@ bool RMGVertexConfinement::ActualGenerateVertex(G4ThreeVector& vertex) {
     }
   }
 
-  RMGLog::OutDev(RMGLog::debug, "Sampling mode: ", magic_enum::enum_name<SamplingMode>(fSamplingMode));
+  RMGLog::OutDev(
+      RMGLog::debug_event,
+      "Sampling mode: ",
+      magic_enum::enum_name<SamplingMode>(fSamplingMode)
+  );
 
   switch (fSamplingMode) {
     case SamplingMode::kIntersectPhysicalWithGeometrical: {
@@ -988,7 +919,7 @@ bool RMGVertexConfinement::ActualGenerateVertex(G4ThreeVector& vertex) {
           accept = true;
         }
         RMGLog::Out(
-            RMGLog::debug,
+            RMGLog::debug_event,
             accept ? "Chosen vertex passes intersection criteria "
                    : "Chosen vertex fails intersection criteria. "
         );
@@ -996,7 +927,7 @@ bool RMGVertexConfinement::ActualGenerateVertex(G4ThreeVector& vertex) {
         // now check for subtractions
         if (accept && !fExcludedGeomVolumeSolids.IsInside(vertex)) return true;
 
-        RMGLog::Out(RMGLog::debug, "Chosen vertex fails intersection criteria.");
+        RMGLog::Out(RMGLog::debug_event, "Chosen vertex fails intersection criteria.");
       }
 
       if (calls >= RMGVVertexGenerator::fMaxAttempts) {
@@ -1181,6 +1112,7 @@ void RMGVertexConfinement::DefineCommands() {
   fMessengers.back()
       ->DeclareProperty("SampleOnSurface", fOnSurface)
       .SetGuidance("If true (or omitted argument), sample on the surface of solids")
+      .SetGuidance(std::string("This is ") + (fOnSurface ? "enabled" : "disabled") + " by default")
       .SetParameterName("boolean", true)
       .SetDefaultValue("true")
       .SetStates(G4State_PreInit, G4State_Idle)
@@ -1229,6 +1161,9 @@ void RMGVertexConfinement::DefineCommands() {
           "If true (or omitted argument), perform a containment check even after sampling "
           "from a natively sampleable object. This is only an extra sanity check that does"
           " not alter the behaviour."
+      )
+      .SetGuidance(
+          std::string("This is ") + (fForceContainmentCheck ? "enabled" : "disabled") + " by default"
       )
       .SetParameterName("boolean", true)
       .SetDefaultValue("true")
