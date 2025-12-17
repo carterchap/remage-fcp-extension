@@ -81,7 +81,7 @@ docker run -it --rm \
   -e DISPLAY=host.docker.internal:0 \
   legendexp/remage
 #Navigate to the Executable 
-cd /mnt/downloads/build
+cd /mnt/Downloads/build
 
 #Run the simulation, -g is how you select a gdml file to use for geometry, -p is how you choose the charge of the particle, the mass of the particle. -m is how you pick the macro file to run. If you want to use the GUI, then then do not enter in a macro file and you can manually input commands that way
 
