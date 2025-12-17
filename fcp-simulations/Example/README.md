@@ -21,7 +21,9 @@ apptainer shell remage.sif
 
 #Navigate to the fcp-simulations/build
 
-cd /path/to/fcp-simulations/build
+cd /path/to/fcp-simulations
+mkdir build
+cd build
 
 cmake ..
 
