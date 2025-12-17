@@ -102,5 +102,13 @@ sbatch script.sh
 Now you have run your simulations, and the files have been outputted as .lh5 files. From here you can do what you want but to see the rest of the tutorial check
 the jupyter notebooks
 
+### Step 4, 
+
+Postprocessing for the .lh5 files can be done using the Tutorial_PostProcessing.ipynb notebook found above, important to know that you do need access to legend-base for this. The post processing file also requires the information from detector_list.txt and L200_Det_Radii_Pos.xlsx to run. The post-processing file converts all the information from the simulations into a by detector by event format where you can customize what particles you want to track, muons, FCPs, electrons etc. Final data has energy depositions per detector as well as trajectories, path length, area of detector hit.
+
+
+### Step 5, 
+
+Use the output files from the post processing in the Sensitivity_Plot_Tutorial.ipynb to calculate solid angles, and overall FCP flux to get the sensitivity plot!
 
 
