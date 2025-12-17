@@ -40,7 +40,9 @@ docker run -it --rm \
 #navigate to your folder where you have the FCP code from this repository, in my exmaple it is in my Downloads folder.
 #go to the empty build folder
 
-cd /mnt/Downloads/fcp-simulations/build
+cd /mnt/Downloads/fcp-simulations
+mkdir build
+cd build
 
 #Compile
 
