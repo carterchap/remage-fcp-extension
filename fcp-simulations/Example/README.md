@@ -7,6 +7,8 @@ This is also only works for Longleaf/NERSC
 ### Step 1, Install remage,LEGEND-base, convert to a .sif file 
 
 ```bash
+module load apptainer
+
 apptainer build remage.sif docker://legendexp/remage
 
 apptainer build legend-base.sif docker://legendexp/legend-base
